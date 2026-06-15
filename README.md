@@ -83,7 +83,7 @@ keys). Each grant and its role level is configurable in
 These levels are configurable in
 [infra/user-access.parameters.json](infra/user-access.parameters.json) and are
 enforced with a **custom Cosmos data role** (items only), the built-in
-**Azure AI User** role on the Foundry project, and the built-in **Search Index
+**Foundry User** role on the Foundry project, and the built-in **Search Index
 Data Reader** role on Search.
 
 ---
@@ -333,7 +333,7 @@ scripts/
 | Requirement | Implementation |
 | ----------- | -------------- |
 | Cosmos: read/write items, no create/delete/scale | A **custom** Cosmos SQL role granting only `containers/items/*`, `executeQuery`, `readChangeFeed`, and `readMetadata` — it deliberately omits container management actions. |
-| Foundry: run + create agents, no deployment changes | Built-in **Azure AI User** on each project scope (data plane). No control-plane role on the account, so deployments can't be created or deleted. Granted on the primary project and, when present, the secondary one. |
+| Foundry: run + create agents, no deployment changes | Built-in **Foundry User** on each project scope (data plane). No control-plane role on the account, so deployments can't be created or deleted. Granted on the primary project and, when present, the secondary one. |
 | Search: read only | Built-in **Search Index Data Reader** on the service. |
 
 ### Service-to-service RBAC (Part C)
