@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workshopUsers": {
+      "//": "One entry per workshop participant or per Entra group of participants. Replace objectId with a real Entra user/group object id. principalType is 'User', 'Group', or 'ServicePrincipal'. Find a user id with: az ad user show --id alias@contoso.com --query id -o tsv. Find a group id with: az ad group show --group 'workshop-participants' --query id -o tsv",
+      "value": [
+        {
+          "objectId": "00000000-0000-0000-0000-000000000000",
+          "principalType": "Group",
+          "displayName": "workshop-participants"
+        }
+      ]
+    },
+    "userAccess": {
+      "//": "Part D — the exact level of access participants receive. Change a roleDefinitionId to raise/lower a level, or edit the Cosmos dataActions list.",
+      "value": {
+        "//foundry": "Foundry project access. Default: Azure AI User = run + create agents, but NOT create/delete model deployments.",
+        "foundry": {
+          "roleName": "Azure AI User",
+          "roleDefinitionId": "53ca6127-db72-4b80-b1b0-d745d6d5456d"
+        },
+        "//search": "AI Search access. Default: Search Index Data Reader = read (query) only.",
+        "search": {
+          "roleName": "Search Index Data Reader",
+          "roleDefinitionId": "1407120a-92aa-4202-b7e9-c0e197c71c8f"
+        },
+        "//cosmos": "Cosmos DB access. Default dataActions = read/write ITEMS only (no container create/delete/scale).",
+        "cosmos": {
+          "roleName": "Workshop Data Read/Write (items only)",
+          "dataActions": [
+            "Microsoft.DocumentDB/databaseAccounts/readMetadata",
+            "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/*",
+            "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/executeQuery",
+            "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/readChangeFeed"
+          ]
+        }
+      }
+    }
+  }
+}
