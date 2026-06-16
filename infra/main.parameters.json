@@ -6,36 +6,77 @@
       "value": {
         "//": "Central configuration. Change anything here BEFORE running deploy. Every name, region, SKU, and model is configurable.",
 
-        "workshopName": "zava-ai-workshop",
+        "workshopName": "pepsi-ai-workshop",
         "environmentName": "sandbox",
 
-        "//region": "primaryLocation hosts Cosmos DB, AI Search, Container Apps, and Application Insights. Foundry can run in different regions via aiFoundry.locations to chase model quota.",
-        "primaryLocation": "northcentralus",
+        "//region": "primaryLocation hosts most resources. OpenAI and SQL may use different regions for VECTOR/model availability.",
+        "primaryLocation": "eastus2",
 
         "tags": {
-          "Project": "Zava AI Workshop",
+          "Project": "PepsiCo AI Workshop",
           "Environment": "Sandbox",
           "ManagedBy": "azd"
         },
 
-        "//features": "Turn whole resource groups of services on/off. The workshop needs all five set to true.",
+        "//features": "Turn whole resource groups on/off. enableDataPlatform covers Pradipta's labs (SQL, AOAI, AML, Storage). enableFabric provisions a Fabric capacity.",
         "features": {
           "enableAiFoundry": true,
           "enableAiSearch": true,
           "enableContainerApps": true,
-          "enableCosmosDb": true
+          "enableCosmosDb": true,
+          "enableDataPlatform": true,
+          "enableFabric": false
+        },
+
+        "//dataPlatform": "Pradipta's Data Platform resources (Labs 01-04). Azure OpenAI, Azure SQL (VECTOR), AML, Storage, Key Vault, Fabric.",
+        "dataPlatform": {
+          "//adminObjectId": "Entra Object ID of the workshop operator/admin. Used as SQL Entra admin, Key Vault admin, and Fabric capacity admin.",
+          "adminObjectId": "<REPLACE-WITH-YOUR-ENTRA-OBJECT-ID>",
+          "aadAdminLogin": "<REPLACE-WITH-YOUR-UPN>",
+
+          "//openAi": "Azure OpenAI for embedding (Lab 03) and chat (Data Agent). Use a region that supports text-embedding-3-small.",
+          "openAiLocation": "eastus2",
+          "openAiEmbedDeploymentName": "text-embedding-3-small",
+          "openAiChatDeploymentName": "gpt-4o-mini",
+          "openAiDeployments": [
+            {
+              "name": "text-embedding-3-small",
+              "model": "text-embedding-3-small",
+              "version": "1",
+              "skuName": "Standard",
+              "capacity": 60
+            },
+            {
+              "name": "gpt-4o-mini",
+              "model": "gpt-4o-mini",
+              "version": "2024-07-18",
+              "skuName": "GlobalStandard",
+              "capacity": 60
+            }
+          ],
+
+          "//sql": "Azure SQL Database with VECTOR type support for Lab 03. Use a region where VECTOR is GA.",
+          "sqlLocation": "eastus2",
+          "sqlDatabaseName": "db_pepsi_rag",
+
+          "//aml": "Azure Machine Learning workspace + compute for Lab 04.",
+          "amlComputeName": "cpu-cluster",
+          "amlComputeVmSize": "Standard_DS3_v2",
+          "amlComputeMinNodes": 0,
+          "amlComputeMaxNodes": 2,
+
+          "//fabric": "Fabric capacity SKU. Set enableFabric=true to provision via Bicep. Otherwise provision manually in the Fabric admin portal.",
+          "fabricSkuName": "F2"
         },
 
         "aiFoundry": {
-          "//locations": "Foundry runs in these regions. FIRST = primary (feeds the workshop .env). SECOND = secondary full stack for model-quota overflow / fallback. All OTHER resources stay in primaryLocation. Use one region by leaving a single entry. NOTE: every model in deployments[] must be available in EVERY region listed here.",
+          "//locations": "Foundry runs in these regions. FIRST = primary (feeds the workshop .env). SECOND = secondary full stack for model-quota overflow / fallback.",
           "locations": [
             "northcentralus",
             "swedencentral"
           ],
           "sku": "S0",
-          "//chatDeploymentName": "Must match one deployment.name below; written to .env as AZURE_AI_MODEL_DEPLOYMENT.",
           "chatDeploymentName": "gpt-4.1-mini",
-          "//embeddingDeploymentName": "Must match one deployment.name below; written to .env as AZURE_AI_EMBEDDING_DEPLOYMENT (long-term memory).",
           "embeddingDeploymentName": "text-embedding-3-small",
           "deployments": [
             {
@@ -57,7 +98,6 @@
               "model": "gpt-4.1-mini",
               "version": "2025-04-14",
               "skuName": "GlobalStandard",
-              "//capacity": "Capped to available quota in the tightest Foundry region (swedencentral). Raise toward 5000 once quota is freed/increased.",
               "capacity": 1163
             },
             {
@@ -65,7 +105,6 @@
               "model": "text-embedding-3-small",
               "version": "1",
               "skuName": "GlobalStandard",
-              "//capacity": "Capped to available quota in the tightest Foundry region (swedencentral). Raise toward 1000 once quota is freed/increased.",
               "capacity": 425
             }
           ]
@@ -89,7 +128,6 @@
 
         "cosmosDb": {
           "databaseName": "zava",
-          "//containers": "Names must match the workshop .env (COSMOS_*_CONTAINER). Partition key is /id for all three.",
           "salesContainerName": "sales",
           "inventoryContainerName": "inventory",
           "marketingContainerName": "marketing_campaigns",

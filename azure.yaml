@@ -1,4 +1,4 @@
-name: ai-workshop-infra
+name: pepsi-data-workshop-infra
 infra:
   provider: bicep
   path: infra

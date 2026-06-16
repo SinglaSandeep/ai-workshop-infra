@@ -82,6 +82,8 @@ try {
         --parameters "aiProjectSecondaryName=$($names.aiProjectSecondary)" `
         --parameters "searchServiceName=$($names.aiSearch)" `
         --parameters "cosmosAccountName=$($names.cosmosDb)" `
+        --parameters "openAiAccountName=$($names.openAi)" `
+        --parameters "amlWorkspaceName=$($names.amlWorkspace)" `
         --only-show-errors | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw "Participant access deployment failed with exit code $LASTEXITCODE. Check that every objectId in $UserAccessParametersFile is a real Entra user/group id (not the 00000000... placeholder)."

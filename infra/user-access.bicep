@@ -24,6 +24,13 @@ param searchServiceName string = ''
 @description('Name of the Cosmos DB account in this resource group (from deployment outputs).')
 param cosmosAccountName string = ''
 
+// --- Pradipta's Data Platform resources ---
+@description('Name of the Azure OpenAI account (from deployment outputs).')
+param openAiAccountName string = ''
+
+@description('Name of the Azure ML workspace (from deployment outputs).')
+param amlWorkspaceName string = ''
+
 // ---------------------------------------------------------------------------
 // Existing resources (created by the infra deployment).
 // ---------------------------------------------------------------------------
@@ -133,7 +140,47 @@ resource userCosmosAssignments 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAss
   }
 }]
 
+// ---------------------------------------------------------------------------
+// Pradipta's Data Platform — participant grants
+// ---------------------------------------------------------------------------
+
+// (d) Azure OpenAI: Cognitive Services User (call embeddings + chat, no deploy).
+resource openAiAccount 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = if (!empty(openAiAccountName)) {
+  name: openAiAccountName
+}
+
+var cogServicesUserRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
+
+resource userOpenAiAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for user in workshopUsers: if (!empty(openAiAccountName)) {
+  name: guid(openAiAccount.id, user.objectId, 'workshop-user-cog-services-user')
+  scope: openAiAccount
+  properties: {
+    roleDefinitionId: cogServicesUserRoleId
+    principalId: user.objectId
+    principalType: user.principalType
+  }
+}]
+
+// (e) Azure ML: AzureML Data Scientist (run experiments, deploy endpoints).
+resource amlWorkspace 'Microsoft.MachineLearningServices/workspaces@2024-04-01' existing = if (!empty(amlWorkspaceName)) {
+  name: amlWorkspaceName
+}
+
+var amlDataScientistRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f6c7c914-8db3-469d-8ca1-694a8f32e121')
+
+resource userAmlAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for user in workshopUsers: if (!empty(amlWorkspaceName)) {
+  name: guid(amlWorkspace.id, user.objectId, 'workshop-user-aml-data-scientist')
+  scope: amlWorkspace
+  properties: {
+    roleDefinitionId: amlDataScientistRoleId
+    principalId: user.objectId
+    principalType: user.principalType
+  }
+}]
+
 output summary object = {
   usersGranted: length(workshopUsers)
   cosmosRoleName: empty(cosmosAccountName) ? '' : userAccess.cosmos.roleName
+  openAiAccess: !empty(openAiAccountName) ? 'Cognitive Services User' : 'disabled'
+  amlAccess: !empty(amlWorkspaceName) ? 'AzureML Data Scientist' : 'disabled'
 }
