@@ -1,0 +1,564 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.39.26.7824",
+      "templateHash": "4663596971235356521"
+    }
+  },
+  "parameters": {
+    "workshopConfig": {
+      "type": "object",
+      "metadata": {
+        "description": "Central workshop configuration for all resources, regions, and SKUs."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "tagsModule",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "workshopConfig": {
+            "value": "[parameters('workshopConfig')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "7976340098982052048"
+            }
+          },
+          "parameters": {
+            "workshopConfig": {
+              "type": "object"
+            }
+          },
+          "variables": {
+            "defaults": {
+              "Project": "[parameters('workshopConfig').workshopName]",
+              "Environment": "[parameters('workshopConfig').environmentName]",
+              "ManagedBy": "azd"
+            }
+          },
+          "resources": [],
+          "outputs": {
+            "tags": {
+              "type": "object",
+              "value": "[union(variables('defaults'), parameters('workshopConfig').tags)]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "coreResources",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "workshopConfig": {
+            "value": "[parameters('workshopConfig')]"
+          },
+          "tags": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'tagsModule'), '2025-04-01').outputs.tags.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "6023580991744822701"
+            }
+          },
+          "parameters": {
+            "workshopConfig": {
+              "type": "object",
+              "metadata": {
+                "description": "Central workshop configuration object."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "metadata": {
+                "description": "Standardized tags to apply to all resources."
+              }
+            }
+          },
+          "variables": {
+            "unique": "[toLower(uniqueString(resourceGroup().id))]",
+            "compactWorkshop": "[toLower(replace(replace(format('{0}{1}', parameters('workshopConfig').workshopName, parameters('workshopConfig').environmentName), '-', ''), '_', ''))]",
+            "basePrefix": "[take(variables('compactWorkshop'), 12)]",
+            "searchName": "[take(format('{0}{1}srch', variables('basePrefix'), variables('unique')), 24)]",
+            "registryName": "[take(format('{0}{1}cr', variables('basePrefix'), variables('unique')), 50)]",
+            "managedEnvName": "[take(format('{0}-{1}-cae', variables('basePrefix'), variables('unique')), 32)]",
+            "appInsightsName": "[take(format('{0}-{1}-appi', variables('basePrefix'), variables('unique')), 64)]",
+            "logAnalyticsName": "[take(format('{0}-{1}-law', variables('basePrefix'), variables('unique')), 63)]",
+            "cosmosName": "[take(format('{0}-{1}-cosmos', variables('basePrefix'), variables('unique')), 44)]",
+            "workloadIdentityName": "[take(format('{0}-{1}-app-id', variables('basePrefix'), variables('unique')), 128)]",
+            "foundryRegions": "[parameters('workshopConfig').aiFoundry.locations]"
+          },
+          "resources": [
+            {
+              "condition": "[parameters('workshopConfig').features.enableContainerApps]",
+              "type": "Microsoft.OperationalInsights/workspaces",
+              "apiVersion": "2023-09-01",
+              "name": "[variables('logAnalyticsName')]",
+              "location": "[parameters('workshopConfig').primaryLocation]",
+              "properties": {
+                "sku": {
+                  "name": "PerGB2018"
+                },
+                "retentionInDays": "[parameters('workshopConfig').containerApps.logRetentionInDays]"
+              },
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "condition": "[parameters('workshopConfig').features.enableContainerApps]",
+              "type": "Microsoft.Insights/components",
+              "apiVersion": "2020-02-02-preview",
+              "name": "[variables('appInsightsName')]",
+              "location": "[parameters('workshopConfig').primaryLocation]",
+              "kind": "web",
+              "properties": {
+                "Application_Type": "web",
+                "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]",
+                "DisableLocalAuth": true
+              },
+              "tags": "[parameters('tags')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]"
+              ]
+            },
+            {
+              "condition": "[parameters('workshopConfig').features.enableAiSearch]",
+              "type": "Microsoft.Search/searchServices",
+              "apiVersion": "2025-05-01",
+              "name": "[variables('searchName')]",
+              "location": "[parameters('workshopConfig').primaryLocation]",
+              "sku": {
+                "name": "[parameters('workshopConfig').aiSearch.sku]"
+              },
+              "properties": {
+                "disableLocalAuth": true,
+                "partitionCount": "[parameters('workshopConfig').aiSearch.partitionCount]",
+                "publicNetworkAccess": "enabled",
+                "replicaCount": "[parameters('workshopConfig').aiSearch.replicaCount]",
+                "semanticSearch": "[parameters('workshopConfig').aiSearch.semanticSearch]"
+              },
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "condition": "[parameters('workshopConfig').features.enableContainerApps]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2023-01-31",
+              "name": "[variables('workloadIdentityName')]",
+              "location": "[parameters('workshopConfig').primaryLocation]",
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "condition": "[parameters('workshopConfig').features.enableContainerApps]",
+              "type": "Microsoft.ContainerRegistry/registries",
+              "apiVersion": "2023-07-01",
+              "name": "[variables('registryName')]",
+              "location": "[parameters('workshopConfig').primaryLocation]",
+              "sku": {
+                "name": "[parameters('workshopConfig').containerRegistry.sku]"
+              },
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "adminUserEnabled": false,
+                "publicNetworkAccess": "Enabled"
+              },
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "condition": "[parameters('workshopConfig').features.enableContainerApps]",
+              "type": "Microsoft.App/managedEnvironments",
+              "apiVersion": "2024-03-01",
+              "name": "[variables('managedEnvName')]",
+              "location": "[parameters('workshopConfig').primaryLocation]",
+              "properties": {
+                "appLogsConfiguration": {
+                  "destination": "azure-monitor"
+                },
+                "workloadProfiles": "[parameters('workshopConfig').containerApps.workloadProfiles]"
+              },
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "condition": "[parameters('workshopConfig').features.enableContainerApps]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[format('Microsoft.App/managedEnvironments/{0}', variables('managedEnvName'))]",
+              "name": "send-to-log-analytics",
+              "properties": {
+                "workspaceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]",
+                "logs": [
+                  {
+                    "categoryGroup": "allLogs",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]",
+                "[resourceId('Microsoft.App/managedEnvironments', variables('managedEnvName'))]"
+              ]
+            },
+            {
+              "condition": "[parameters('workshopConfig').features.enableCosmosDb]",
+              "type": "Microsoft.DocumentDB/databaseAccounts",
+              "apiVersion": "2024-11-15",
+              "name": "[variables('cosmosName')]",
+              "location": "[parameters('workshopConfig').primaryLocation]",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "kind": "GlobalDocumentDB",
+              "properties": {
+                "capabilities": [
+                  {
+                    "name": "EnableNoSQLVectorSearch"
+                  }
+                ],
+                "consistencyPolicy": {
+                  "defaultConsistencyLevel": "Session"
+                },
+                "databaseAccountOfferType": "Standard",
+                "disableLocalAuth": true,
+                "locations": [
+                  {
+                    "failoverPriority": 0,
+                    "isZoneRedundant": false,
+                    "locationName": "[parameters('workshopConfig').primaryLocation]"
+                  }
+                ],
+                "publicNetworkAccess": "Enabled"
+              },
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "condition": "[parameters('workshopConfig').features.enableCosmosDb]",
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
+              "apiVersion": "2024-11-15",
+              "name": "[format('{0}/{1}', variables('cosmosName'), parameters('workshopConfig').cosmosDb.databaseName)]",
+              "properties": {
+                "resource": {
+                  "id": "[parameters('workshopConfig').cosmosDb.databaseName]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName'))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "cosmosContainers",
+                "count": "[length(parameters('workshopConfig').cosmosDb.containers)]"
+              },
+              "condition": "[parameters('workshopConfig').features.enableCosmosDb]",
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2024-11-15",
+              "name": "[format('{0}/{1}/{2}', variables('cosmosName'), parameters('workshopConfig').cosmosDb.databaseName, parameters('workshopConfig').cosmosDb.containers[copyIndex()].name)]",
+              "properties": {
+                "options": {
+                  "throughput": "[parameters('workshopConfig').cosmosDb.containers[copyIndex()].throughput]"
+                },
+                "resource": {
+                  "id": "[parameters('workshopConfig').cosmosDb.containers[copyIndex()].name]",
+                  "partitionKey": {
+                    "kind": "Hash",
+                    "paths": [
+                      "[parameters('workshopConfig').cosmosDb.containers[copyIndex()].partitionKey]"
+                    ]
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('cosmosName'), parameters('workshopConfig').cosmosDb.databaseName)]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "foundry",
+                "count": "[length(variables('foundryRegions'))]"
+              },
+              "condition": "[parameters('workshopConfig').features.enableAiFoundry]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[format('foundry-{0}', copyIndex())]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "accountName": {
+                    "value": "[take(format('aif-{0}{1}', variables('basePrefix'), toLower(uniqueString(resourceGroup().id, variables('foundryRegions')[copyIndex()]))), 24)]"
+                  },
+                  "projectName": {
+                    "value": "[take(format('proj-{0}{1}', variables('basePrefix'), toLower(uniqueString(resourceGroup().id, variables('foundryRegions')[copyIndex()]))), 24)]"
+                  },
+                  "location": {
+                    "value": "[variables('foundryRegions')[copyIndex()]]"
+                  },
+                  "sku": {
+                    "value": "[parameters('workshopConfig').aiFoundry.sku]"
+                  },
+                  "deployments": {
+                    "value": "[parameters('workshopConfig').aiFoundry.deployments]"
+                  },
+                  "tags": {
+                    "value": "[parameters('tags')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "11174462873418241775"
+                    }
+                  },
+                  "parameters": {
+                    "accountName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Foundry (Cognitive Services AIServices) account name. Globally unique."
+                      }
+                    },
+                    "projectName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Foundry project name (child of the account)."
+                      }
+                    },
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region for this Foundry stack."
+                      }
+                    },
+                    "sku": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Account SKU, e.g. S0."
+                      }
+                    },
+                    "deployments": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "Model deployments to create on this account."
+                      }
+                    },
+                    "tags": {
+                      "type": "object",
+                      "metadata": {
+                        "description": "Tags to apply."
+                      }
+                    }
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.CognitiveServices/accounts",
+                      "apiVersion": "2025-10-01-preview",
+                      "name": "[parameters('accountName')]",
+                      "location": "[parameters('location')]",
+                      "identity": {
+                        "type": "SystemAssigned"
+                      },
+                      "sku": {
+                        "name": "[parameters('sku')]"
+                      },
+                      "kind": "AIServices",
+                      "properties": {
+                        "allowProjectManagement": true,
+                        "customSubDomainName": "[parameters('accountName')]",
+                        "disableLocalAuth": true,
+                        "publicNetworkAccess": "Enabled"
+                      },
+                      "tags": "[parameters('tags')]"
+                    },
+                    {
+                      "type": "Microsoft.CognitiveServices/accounts/projects",
+                      "apiVersion": "2025-10-01-preview",
+                      "name": "[format('{0}/{1}', parameters('accountName'), parameters('projectName'))]",
+                      "location": "[parameters('location')]",
+                      "identity": {
+                        "type": "SystemAssigned"
+                      },
+                      "properties": {},
+                      "tags": "[parameters('tags')]",
+                      "dependsOn": [
+                        "[resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName'))]"
+                      ]
+                    },
+                    {
+                      "copy": {
+                        "name": "aiDeployments",
+                        "count": "[length(parameters('deployments'))]",
+                        "mode": "serial",
+                        "batchSize": 1
+                      },
+                      "type": "Microsoft.CognitiveServices/accounts/deployments",
+                      "apiVersion": "2025-06-01",
+                      "name": "[format('{0}/{1}', parameters('accountName'), parameters('deployments')[copyIndex()].name)]",
+                      "sku": {
+                        "name": "[parameters('deployments')[copyIndex()].skuName]",
+                        "capacity": "[parameters('deployments')[copyIndex()].capacity]"
+                      },
+                      "properties": {
+                        "model": {
+                          "format": "OpenAI",
+                          "name": "[parameters('deployments')[copyIndex()].model]",
+                          "version": "[parameters('deployments')[copyIndex()].version]"
+                        },
+                        "versionUpgradeOption": "NoAutoUpgrade"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName'))]"
+                      ]
+                    }
+                  ],
+                  "outputs": {
+                    "accountName": {
+                      "type": "string",
+                      "value": "[parameters('accountName')]"
+                    },
+                    "accountPrincipalId": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName')), '2025-10-01-preview', 'full').identity.principalId]"
+                    },
+                    "accountEndpoint": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName')), '2025-10-01-preview').endpoint]"
+                    },
+                    "projectName": {
+                      "type": "string",
+                      "value": "[parameters('projectName')]"
+                    },
+                    "projectId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('accountName'), parameters('projectName'))]"
+                    },
+                    "projectPrincipalId": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('accountName'), parameters('projectName')), '2025-10-01-preview', 'full').identity.principalId]"
+                    },
+                    "projectEndpoint": {
+                      "type": "string",
+                      "value": "[format('https://{0}.services.ai.azure.com/api/projects/{1}', parameters('accountName'), parameters('projectName'))]"
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "resourceNames": {
+              "type": "object",
+              "value": {
+                "aiFoundry": "[if(parameters('workshopConfig').features.enableAiFoundry, reference(resourceId('Microsoft.Resources/deployments', format('foundry-{0}', 0)), '2025-04-01').outputs.accountName.value, '')]",
+                "aiProject": "[if(parameters('workshopConfig').features.enableAiFoundry, reference(resourceId('Microsoft.Resources/deployments', format('foundry-{0}', 0)), '2025-04-01').outputs.projectName.value, '')]",
+                "aiFoundrySecondary": "[if(and(parameters('workshopConfig').features.enableAiFoundry, greater(length(variables('foundryRegions')), 1)), reference(resourceId('Microsoft.Resources/deployments', format('foundry-{0}', 1)), '2025-04-01').outputs.accountName.value, '')]",
+                "aiProjectSecondary": "[if(and(parameters('workshopConfig').features.enableAiFoundry, greater(length(variables('foundryRegions')), 1)), reference(resourceId('Microsoft.Resources/deployments', format('foundry-{0}', 1)), '2025-04-01').outputs.projectName.value, '')]",
+                "aiSearch": "[if(parameters('workshopConfig').features.enableAiSearch, variables('searchName'), '')]",
+                "appInsights": "[if(parameters('workshopConfig').features.enableContainerApps, variables('appInsightsName'), '')]",
+                "containerAppsEnvironment": "[if(parameters('workshopConfig').features.enableContainerApps, variables('managedEnvName'), '')]",
+                "containerRegistry": "[if(parameters('workshopConfig').features.enableContainerApps, variables('registryName'), '')]",
+                "cosmosDb": "[if(parameters('workshopConfig').features.enableCosmosDb, variables('cosmosName'), '')]",
+                "logAnalytics": "[if(parameters('workshopConfig').features.enableContainerApps, variables('logAnalyticsName'), '')]",
+                "workloadIdentity": "[if(parameters('workshopConfig').features.enableContainerApps, variables('workloadIdentityName'), '')]"
+              }
+            },
+            "endpoints": {
+              "type": "object",
+              "value": {
+                "aiFoundryEndpoint": "[if(parameters('workshopConfig').features.enableAiFoundry, reference(resourceId('Microsoft.Resources/deployments', format('foundry-{0}', 0)), '2025-04-01').outputs.accountEndpoint.value, '')]",
+                "aiProjectEndpoint": "[if(parameters('workshopConfig').features.enableAiFoundry, reference(resourceId('Microsoft.Resources/deployments', format('foundry-{0}', 0)), '2025-04-01').outputs.projectEndpoint.value, '')]",
+                "aiProjectResourceId": "[if(parameters('workshopConfig').features.enableAiFoundry, reference(resourceId('Microsoft.Resources/deployments', format('foundry-{0}', 0)), '2025-04-01').outputs.projectId.value, '')]",
+                "aiProjectEndpointSecondary": "[if(and(parameters('workshopConfig').features.enableAiFoundry, greater(length(variables('foundryRegions')), 1)), reference(resourceId('Microsoft.Resources/deployments', format('foundry-{0}', 1)), '2025-04-01').outputs.projectEndpoint.value, '')]",
+                "aiProjectResourceIdSecondary": "[if(and(parameters('workshopConfig').features.enableAiFoundry, greater(length(variables('foundryRegions')), 1)), reference(resourceId('Microsoft.Resources/deployments', format('foundry-{0}', 1)), '2025-04-01').outputs.projectId.value, '')]",
+                "appInsightsConnectionString": "[if(parameters('workshopConfig').features.enableContainerApps, reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02-preview').ConnectionString, '')]",
+                "cosmosEndpoint": "[if(parameters('workshopConfig').features.enableCosmosDb, reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), '2024-11-15').documentEndpoint, '')]",
+                "searchEndpoint": "[if(parameters('workshopConfig').features.enableAiSearch, format('https://{0}.search.windows.net', variables('searchName')), '')]"
+              }
+            },
+            "workshopSettings": {
+              "type": "object",
+              "value": {
+                "modelDeployment": "[parameters('workshopConfig').aiFoundry.chatDeploymentName]",
+                "embeddingDeployment": "[parameters('workshopConfig').aiFoundry.embeddingDeploymentName]",
+                "cosmosDatabase": "[parameters('workshopConfig').cosmosDb.databaseName]",
+                "cosmosSalesContainer": "[parameters('workshopConfig').cosmosDb.salesContainerName]",
+                "cosmosInventoryContainer": "[parameters('workshopConfig').cosmosDb.inventoryContainerName]",
+                "cosmosMarketingContainer": "[parameters('workshopConfig').cosmosDb.marketingContainerName]",
+                "acaEnvironment": "[if(parameters('workshopConfig').features.enableContainerApps, variables('managedEnvName'), '')]",
+                "acrName": "[if(parameters('workshopConfig').features.enableContainerApps, variables('registryName'), '')]",
+                "workloadIdentityClientId": "[if(parameters('workshopConfig').features.enableContainerApps, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('workloadIdentityName')), '2023-01-31').clientId, '')]",
+                "workloadIdentityResourceId": "[if(parameters('workshopConfig').features.enableContainerApps, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('workloadIdentityName')), '')]"
+              }
+            },
+            "managedIdentityPrincipals": {
+              "type": "object",
+              "value": {
+                "aiFoundryPrincipalId": "[if(parameters('workshopConfig').features.enableAiFoundry, reference(resourceId('Microsoft.Resources/deployments', format('foundry-{0}', 0)), '2025-04-01').outputs.accountPrincipalId.value, '')]",
+                "aiProjectPrincipalId": "[if(parameters('workshopConfig').features.enableAiFoundry, reference(resourceId('Microsoft.Resources/deployments', format('foundry-{0}', 0)), '2025-04-01').outputs.projectPrincipalId.value, '')]",
+                "aiFoundrySecondaryPrincipalId": "[if(and(parameters('workshopConfig').features.enableAiFoundry, greater(length(variables('foundryRegions')), 1)), reference(resourceId('Microsoft.Resources/deployments', format('foundry-{0}', 1)), '2025-04-01').outputs.accountPrincipalId.value, '')]",
+                "aiProjectSecondaryPrincipalId": "[if(and(parameters('workshopConfig').features.enableAiFoundry, greater(length(variables('foundryRegions')), 1)), reference(resourceId('Microsoft.Resources/deployments', format('foundry-{0}', 1)), '2025-04-01').outputs.projectPrincipalId.value, '')]",
+                "containerRegistryPrincipalId": "[if(parameters('workshopConfig').features.enableContainerApps, reference(resourceId('Microsoft.ContainerRegistry/registries', variables('registryName')), '2023-07-01', 'full').identity.principalId, '')]",
+                "cosmosPrincipalId": "[if(parameters('workshopConfig').features.enableCosmosDb, reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), '2024-11-15', 'full').identity.principalId, '')]",
+                "workloadIdentityPrincipalId": "[if(parameters('workshopConfig').features.enableContainerApps, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('workloadIdentityName')), '2023-01-31').principalId, '')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'tagsModule')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "resourceNames": {
+      "type": "object",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'coreResources'), '2025-04-01').outputs.resourceNames.value]"
+    },
+    "endpoints": {
+      "type": "object",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'coreResources'), '2025-04-01').outputs.endpoints.value]"
+    },
+    "workshopSettings": {
+      "type": "object",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'coreResources'), '2025-04-01').outputs.workshopSettings.value]"
+    },
+    "managedIdentityPrincipals": {
+      "type": "object",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'coreResources'), '2025-04-01').outputs.managedIdentityPrincipals.value]"
+    }
+  }
+}
