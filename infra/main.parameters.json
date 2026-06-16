@@ -1,0 +1,84 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workshopConfig": {
+      "value": {
+        "//": "Central configuration. Change anything here BEFORE running deploy. Every name, region, SKU, and model is configurable.",
+
+        "workshopName": "zava-ai-workshop",
+        "environmentName": "sandbox",
+
+        "//region": "primaryLocation hosts Cosmos DB, AI Search, Container Apps, and Application Insights. Foundry can run in different regions via aiFoundry.locations to chase model quota.",
+        "primaryLocation": "northcentralus",
+
+        "tags": {
+          "Project": "Zava AI Workshop",
+          "Environment": "Sandbox",
+          "ManagedBy": "azd"
+        },
+
+        "//features": "Turn whole resource groups of services on/off. The workshop needs all five set to true.",
+        "features": {
+          "enableAiFoundry": true,
+          "enableAiSearch": true,
+          "enableContainerApps": true,
+          "enableCosmosDb": true
+        },
+
+        "aiFoundry": {
+          "//locations": "Foundry runs in these regions. FIRST = primary (feeds the workshop .env). SECOND = secondary full stack for model-quota overflow / fallback. All OTHER resources stay in primaryLocation. Use one region by leaving a single entry. NOTE: every model in deployments[] must be available in EVERY region listed here.",
+          "locations": [
+            "northcentralus",
+            "swedencentral"
+          ],
+          "sku": "S0",
+          "//chatDeploymentName": "Must match one deployment.name below; written to .env as AZURE_AI_MODEL_DEPLOYMENT.",
+          "chatDeploymentName": "gpt-4.1-mini",
+          "//embeddingDeploymentName": "Must match one deployment.name below; written to .env as AZURE_AI_EMBEDDING_DEPLOYMENT (long-term memory).",
+          "embeddingDeploymentName": "text-embedding-3-small",
+          "deployments": [
+
+            {
+              "name": "gpt-4.1-mini",
+              "model": "gpt-4.1-mini",
+              "version": "2025-04-14",
+              "skuName": "GlobalStandard",
+              "//capacity": "Capped to available quota in the tightest Foundry region (swedencentral). Raise toward 5000 once quota is freed/increased.",
+              "capacity": 1163
+            }
+          ]
+        },
+
+        "aiSearch": {
+          "sku": "basic",
+          "replicaCount": 1,
+          "partitionCount": 1,
+          "semanticSearch": "free"
+        },
+
+        "containerRegistry": {
+          "sku": "Basic"
+        },
+
+        "containerApps": {
+          "logRetentionInDays": 30,
+          "workloadProfiles": []
+        },
+
+        "cosmosDb": {
+          "databaseName": "zava",
+          "//containers": "Names must match the workshop .env (COSMOS_*_CONTAINER). Partition key is /id for all three.",
+          "salesContainerName": "sales",
+          "inventoryContainerName": "inventory",
+          "marketingContainerName": "marketing_campaigns",
+          "containers": [
+            { "name": "sales", "partitionKey": "/id", "throughput": 400 },
+            { "name": "inventory", "partitionKey": "/id", "throughput": 400 },
+            { "name": "marketing_campaigns", "partitionKey": "/id", "throughput": 400 }
+          ]
+        }
+      }
+    }
+  }
+}

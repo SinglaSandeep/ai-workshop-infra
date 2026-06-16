@@ -1,0 +1,5 @@
+.azure/
+.env
+*.user
+*.tmp
+*.log
