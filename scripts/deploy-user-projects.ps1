@@ -40,9 +40,6 @@ param(
     [string]$SubscriptionId,
 
     [Parameter(Mandatory = $false)]
-    [string]$MainOutputsFile = '.azure/main-outputs.json',
-
-    [Parameter(Mandatory = $false)]
     [string]$ProjectsFile = 'infra/foundry-projects.txt',
 
     [Parameter(Mandatory = $false)]
@@ -78,9 +75,6 @@ try {
     if ([string]::IsNullOrWhiteSpace($ResourceGroup)) {
         throw 'AZURE_RESOURCE_GROUP not found. Pass -ResourceGroup or run inside an azd environment.'
     }
-    if (-not (Test-Path $MainOutputsFile)) {
-        throw "Deployment outputs '$MainOutputsFile' not found. Run ./scripts/deploy.ps1 first."
-    }
     if (-not (Test-Path $ProjectsFile)) {
         throw "Projects file '$ProjectsFile' not found."
     }
@@ -88,11 +82,16 @@ try {
         az account set --subscription $SubscriptionId | Out-Null
     }
 
-    $names = (Get-Content $MainOutputsFile -Raw | ConvertFrom-Json -Depth 50).resourceNames.value
-    $aiFoundryName = $names.aiFoundry
-    if ([string]::IsNullOrWhiteSpace($aiFoundryName)) {
-        throw "No AI Foundry account name found in '$MainOutputsFile'. Was Foundry enabled in the deployment?"
+    # Discover the Foundry (Cognitive Services AIServices) account directly from
+    # the resource group instead of relying on a deployment-outputs file.
+    $aiFoundryName = az cognitiveservices account list `
+        --resource-group $ResourceGroup `
+        --query "[?kind=='AIServices'].name | [0]" `
+        -o tsv 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($aiFoundryName)) {
+        throw "No AI Foundry (AIServices) account found in resource group '$ResourceGroup'. Run ./scripts/deploy.ps1 first."
     }
+    $aiFoundryName = $aiFoundryName.Trim()
 
     $foundryLocation = az cognitiveservices account show --name $aiFoundryName --resource-group $ResourceGroup --query location -o tsv 2>$null
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($foundryLocation)) {
