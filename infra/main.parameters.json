@@ -31,8 +31,8 @@
         "//dataPlatform": "Pradipta's Data Platform resources (Labs 01-04). Azure OpenAI, Azure SQL (VECTOR), AML, Storage, Key Vault, Fabric.",
         "dataPlatform": {
           "//adminObjectId": "Entra Object ID of the workshop operator/admin. Used as SQL Entra admin, Key Vault admin, and Fabric capacity admin.",
-          "adminObjectId": "<REPLACE-WITH-YOUR-ENTRA-OBJECT-ID>",
-          "aadAdminLogin": "<REPLACE-WITH-YOUR-UPN>",
+          "adminObjectId": "4c517221-2844-4edd-84e1-8a3f5f4bb55f",
+          "aadAdminLogin": "admin@MngEnvMCAP846697.onmicrosoft.com",
 
           "//openAi": "Azure OpenAI for embedding (Lab 03) and chat (Data Agent). Use a region that supports text-embedding-3-small.",
           "openAiLocation": "eastus2",
@@ -55,8 +55,8 @@
             }
           ],
 
-          "//sql": "Azure SQL Database with VECTOR type support for Lab 03. Use a region where VECTOR is GA.",
-          "sqlLocation": "eastus2",
+          "//sql": "Azure SQL Database with VECTOR type support for Lab 03. Use a region where VECTOR is GA and SQL provisioning is allowed.",
+          "sqlLocation": "eastus",
           "sqlDatabaseName": "db_pepsi_rag",
 
           "//aml": "Azure Machine Learning workspace + compute for Lab 04.",

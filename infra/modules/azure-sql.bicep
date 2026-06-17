@@ -48,7 +48,7 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
 
 // Allow Azure services to access (needed for AML, Fabric, notebooks)
 resource firewallAllowAzure 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = {
-  name: 'AllowAllWindowsAzureIps'
+  name: 'AllowAzureServices'
   parent: sqlServer
   properties: {
     startIpAddress: '0.0.0.0'

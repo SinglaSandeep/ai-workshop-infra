@@ -6,9 +6,9 @@
       "//": "One entry per workshop participant or per Entra group of participants. Replace objectId with a real Entra user/group object id. principalType is 'User', 'Group', or 'ServicePrincipal'. Find a user id with: az ad user show --id alias@contoso.com --query id -o tsv. Find a group id with: az ad group show --group 'workshop-participants' --query id -o tsv",
       "value": [
         {
-          "objectId": "a394c346-50f4-4c0a-acbe-e33ed81b9655",
-          "principalType": "Group",
-          "displayName": "workshop-participants"
+          "objectId": "4c517221-2844-4edd-84e1-8a3f5f4bb55f",
+          "principalType": "User",
+          "displayName": "admin@MngEnvMCAP846697.onmicrosoft.com"
         }
       ]
     },

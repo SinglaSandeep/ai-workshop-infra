@@ -56,6 +56,16 @@ module storage './modules/storage.bicep' = if (workshopConfig.features.enableDat
   }
 }
 
+// Storage Account for AML (WITHOUT HNS - AML requirement)
+module storageAml './modules/storage-aml.bicep' = if (workshopConfig.features.enableDataPlatform) {
+  name: 'storageAml'
+  params: {
+    storageAccountName: take('${basePrefix}${unique}aml', 24)
+    location: workshopConfig.primaryLocation
+    tags: tagsModule.outputs.tags
+  }
+}
+
 // Key Vault
 module keyVault './modules/keyvault.bicep' = if (workshopConfig.features.enableDataPlatform) {
   name: 'keyVault'
@@ -99,7 +109,7 @@ module aml './modules/azure-ml.bicep' = if (workshopConfig.features.enableDataPl
   params: {
     workspaceName: take('${basePrefix}-${unique}-aml', 32)
     location: workshopConfig.primaryLocation
-    storageAccountId: storage.outputs.storageAccountId
+    storageAccountId: storageAml.outputs.storageAccountId
     keyVaultId: keyVault.outputs.keyVaultId
     appInsightsId: observability.outputs.appInsightsId
     computeClusterName: workshopConfig.dataPlatform.amlComputeName
