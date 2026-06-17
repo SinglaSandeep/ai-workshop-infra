@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.39.26.7824",
-      "templateHash": "4663596971235356521"
+      "version": "0.43.8.12551",
+      "templateHash": "16890106440798176521"
     }
   },
   "parameters": {
@@ -15,6 +15,12 @@
         "description": "Central workshop configuration for all resources, regions, and SKUs."
       }
     }
+  },
+  "variables": {
+    "enableDataPlatform": "[if(contains(parameters('workshopConfig').features, 'enableDataPlatform'), parameters('workshopConfig').features.enableDataPlatform, false())]",
+    "unique": "[toLower(uniqueString(resourceGroup().id))]",
+    "compactWorkshop": "[toLower(replace(replace(format('{0}{1}', parameters('workshopConfig').workshopName, parameters('workshopConfig').environmentName), '-', ''), '_', ''))]",
+    "basePrefix": "[take(variables('compactWorkshop'), 12)]"
   },
   "resources": [
     {
@@ -37,8 +43,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.39.26.7824",
-              "templateHash": "7976340098982052048"
+              "version": "0.43.8.12551",
+              "templateHash": "1836982112319810948"
             }
           },
           "parameters": {
@@ -64,6 +70,7 @@
       }
     },
     {
+      "condition": "[or(or(or(parameters('workshopConfig').features.enableAiFoundry, parameters('workshopConfig').features.enableAiSearch), parameters('workshopConfig').features.enableContainerApps), parameters('workshopConfig').features.enableCosmosDb)]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "coreResources",
@@ -86,8 +93,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.39.26.7824",
-              "templateHash": "6023580991744822701"
+              "version": "0.43.8.12551",
+              "templateHash": "12091959007842963373"
             }
           },
           "parameters": {
@@ -211,7 +218,7 @@
               "condition": "[parameters('workshopConfig').features.enableContainerApps]",
               "type": "Microsoft.Insights/diagnosticSettings",
               "apiVersion": "2021-05-01-preview",
-              "scope": "[format('Microsoft.App/managedEnvironments/{0}', variables('managedEnvName'))]",
+              "scope": "[resourceId('Microsoft.App/managedEnvironments', variables('managedEnvName'))]",
               "name": "send-to-log-analytics",
               "properties": {
                 "workspaceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]",
@@ -340,8 +347,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.39.26.7824",
-                      "templateHash": "11174462873418241775"
+                      "version": "0.43.8.12551",
+                      "templateHash": "4375830943659306148"
                     }
                   },
                   "parameters": {
@@ -541,24 +548,964 @@
       "dependsOn": [
         "[resourceId('Microsoft.Resources/deployments', 'tagsModule')]"
       ]
+    },
+    {
+      "condition": "[variables('enableDataPlatform')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "observability",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "appInsightsName": {
+            "value": "[take(format('{0}-{1}-appi-data', variables('basePrefix'), variables('unique')), 64)]"
+          },
+          "logAnalyticsName": {
+            "value": "[take(format('{0}-{1}-law-data', variables('basePrefix'), variables('unique')), 63)]"
+          },
+          "location": {
+            "value": "[parameters('workshopConfig').primaryLocation]"
+          },
+          "tags": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'tagsModule'), '2025-04-01').outputs.tags.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "11049655176986429206"
+            }
+          },
+          "parameters": {
+            "appInsightsName": {
+              "type": "string",
+              "metadata": {
+                "description": "Application Insights name."
+              }
+            },
+            "logAnalyticsName": {
+              "type": "string",
+              "metadata": {
+                "description": "Log Analytics workspace name."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "retentionInDays": {
+              "type": "int",
+              "defaultValue": 30,
+              "metadata": {
+                "description": "Log retention in days."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "metadata": {
+                "description": "Tags to apply."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.OperationalInsights/workspaces",
+              "apiVersion": "2023-09-01",
+              "name": "[parameters('logAnalyticsName')]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "sku": {
+                  "name": "PerGB2018"
+                },
+                "retentionInDays": "[parameters('retentionInDays')]"
+              },
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "type": "Microsoft.Insights/components",
+              "apiVersion": "2020-02-02",
+              "name": "[parameters('appInsightsName')]",
+              "location": "[parameters('location')]",
+              "kind": "web",
+              "properties": {
+                "Application_Type": "web",
+                "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+              },
+              "tags": "[parameters('tags')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "appInsightsName": {
+              "type": "string",
+              "value": "[parameters('appInsightsName')]"
+            },
+            "appInsightsId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Insights/components', parameters('appInsightsName'))]"
+            },
+            "appInsightsConnectionString": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('appInsightsName')), '2020-02-02').ConnectionString]"
+            },
+            "logAnalyticsName": {
+              "type": "string",
+              "value": "[parameters('logAnalyticsName')]"
+            },
+            "logAnalyticsId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'tagsModule')]"
+      ]
+    },
+    {
+      "condition": "[variables('enableDataPlatform')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "keyVault",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[take(format('{0}-{1}-kv', variables('basePrefix'), variables('unique')), 24)]"
+          },
+          "location": {
+            "value": "[parameters('workshopConfig').primaryLocation]"
+          },
+          "tenantId": {
+            "value": "[parameters('workshopConfig').dataPlatform.tenantId]"
+          },
+          "adminObjectId": {
+            "value": "[parameters('workshopConfig').dataPlatform.adminObjectId]"
+          },
+          "tags": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'tagsModule'), '2025-04-01').outputs.tags.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "14753220737424591418"
+            }
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Key Vault name (3-24 alphanumeric + hyphens)."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "tenantId": {
+              "type": "string",
+              "metadata": {
+                "description": "Tenant ID."
+              }
+            },
+            "adminObjectId": {
+              "type": "string",
+              "metadata": {
+                "description": "Object ID of the operator/admin who can manage secrets."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "metadata": {
+                "description": "Tags to apply."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults",
+              "apiVersion": "2023-07-01",
+              "name": "[parameters('keyVaultName')]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "tenantId": "[parameters('tenantId')]",
+                "sku": {
+                  "family": "A",
+                  "name": "standard"
+                },
+                "enableRbacAuthorization": true,
+                "enableSoftDelete": true,
+                "softDeleteRetentionInDays": 7,
+                "publicNetworkAccess": "Enabled"
+              },
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('adminObjectId'), 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                "principalId": "[parameters('adminObjectId')]",
+                "principalType": "User"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "keyVaultName": {
+              "type": "string",
+              "value": "[parameters('keyVaultName')]"
+            },
+            "keyVaultUri": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), '2023-07-01').vaultUri]"
+            },
+            "keyVaultId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'tagsModule')]"
+      ]
+    },
+    {
+      "condition": "[if(and(variables('enableDataPlatform'), contains(parameters('workshopConfig').dataPlatform, 'enableAzureOpenAI')), parameters('workshopConfig').dataPlatform.enableAzureOpenAI, false())]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "azureOpenAI",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "accountName": {
+            "value": "[take(format('{0}-{1}-aoai', variables('basePrefix'), variables('unique')), 64)]"
+          },
+          "location": "[if(contains(parameters('workshopConfig').dataPlatform, 'azureOpenAILocation'), createObject('value', parameters('workshopConfig').dataPlatform.azureOpenAILocation), createObject('value', parameters('workshopConfig').primaryLocation))]",
+          "deployments": "[if(contains(parameters('workshopConfig').dataPlatform, 'azureOpenAIDeployments'), createObject('value', parameters('workshopConfig').dataPlatform.azureOpenAIDeployments), createObject('value', createArray()))]",
+          "tags": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'tagsModule'), '2025-04-01').outputs.tags.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "12516260619144771850"
+            }
+          },
+          "parameters": {
+            "accountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Globally unique name for the Azure OpenAI account."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "deployments": {
+              "type": "array",
+              "metadata": {
+                "description": "Model deployments to create."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "metadata": {
+                "description": "Tags to apply."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.CognitiveServices/accounts",
+              "apiVersion": "2024-10-01",
+              "name": "[parameters('accountName')]",
+              "location": "[parameters('location')]",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "sku": {
+                "name": "S0"
+              },
+              "kind": "OpenAI",
+              "properties": {
+                "customSubDomainName": "[parameters('accountName')]",
+                "disableLocalAuth": false,
+                "publicNetworkAccess": "Enabled",
+                "networkAcls": {
+                  "defaultAction": "Allow"
+                }
+              },
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "copy": {
+                "name": "modelDeployments",
+                "count": "[length(parameters('deployments'))]",
+                "mode": "serial",
+                "batchSize": 1
+              },
+              "type": "Microsoft.CognitiveServices/accounts/deployments",
+              "apiVersion": "2024-10-01",
+              "name": "[format('{0}/{1}', parameters('accountName'), parameters('deployments')[copyIndex()].name)]",
+              "sku": {
+                "name": "[parameters('deployments')[copyIndex()].skuName]",
+                "capacity": "[parameters('deployments')[copyIndex()].capacity]"
+              },
+              "properties": {
+                "model": {
+                  "format": "OpenAI",
+                  "name": "[parameters('deployments')[copyIndex()].model]",
+                  "version": "[parameters('deployments')[copyIndex()].version]"
+                },
+                "versionUpgradeOption": "NoAutoUpgrade"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "accountName": {
+              "type": "string",
+              "value": "[parameters('accountName')]"
+            },
+            "endpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName')), '2024-10-01').endpoint]"
+            },
+            "principalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName')), '2024-10-01', 'full').identity.principalId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'tagsModule')]"
+      ]
+    },
+    {
+      "condition": "[variables('enableDataPlatform')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "storage",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "storageAccountName": {
+            "value": "[take(format('{0}{1}lake', variables('basePrefix'), variables('unique')), 24)]"
+          },
+          "location": {
+            "value": "[parameters('workshopConfig').primaryLocation]"
+          },
+          "tags": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'tagsModule'), '2025-04-01').outputs.tags.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "9966512636290735538"
+            }
+          },
+          "parameters": {
+            "storageAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Storage account name (3-24 lowercase alphanumeric)."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "metadata": {
+                "description": "Tags to apply."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2023-05-01",
+              "name": "[parameters('storageAccountName')]",
+              "location": "[parameters('location')]",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "sku": {
+                "name": "Standard_LRS"
+              },
+              "kind": "StorageV2",
+              "properties": {
+                "accessTier": "Hot",
+                "allowBlobPublicAccess": false,
+                "isHnsEnabled": true,
+                "minimumTlsVersion": "TLS1_2",
+                "supportsHttpsTrafficOnly": true,
+                "publicNetworkAccess": "Enabled"
+              },
+              "tags": "[parameters('tags')]"
+            }
+          ],
+          "outputs": {
+            "storageAccountName": {
+              "type": "string",
+              "value": "[parameters('storageAccountName')]"
+            },
+            "storageAccountId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+            },
+            "primaryBlobEndpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-05-01').primaryEndpoints.blob]"
+            },
+            "primaryDfsEndpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-05-01').primaryEndpoints.dfs]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'tagsModule')]"
+      ]
+    },
+    {
+      "condition": "[if(and(variables('enableDataPlatform'), contains(parameters('workshopConfig').dataPlatform, 'enableAzureML')), parameters('workshopConfig').dataPlatform.enableAzureML, false())]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "storageAML",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "storageAccountName": {
+            "value": "[take(format('{0}{1}aml', variables('basePrefix'), variables('unique')), 24)]"
+          },
+          "location": {
+            "value": "[parameters('workshopConfig').primaryLocation]"
+          },
+          "tags": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'tagsModule'), '2025-04-01').outputs.tags.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "418825569310476755"
+            }
+          },
+          "parameters": {
+            "storageAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Storage account name (3-24 lowercase alphanumeric)."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "metadata": {
+                "description": "Tags to apply."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2023-05-01",
+              "name": "[parameters('storageAccountName')]",
+              "location": "[parameters('location')]",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "sku": {
+                "name": "Standard_LRS"
+              },
+              "kind": "StorageV2",
+              "properties": {
+                "accessTier": "Hot",
+                "allowBlobPublicAccess": false,
+                "isHnsEnabled": false,
+                "minimumTlsVersion": "TLS1_2",
+                "supportsHttpsTrafficOnly": true,
+                "publicNetworkAccess": "Enabled"
+              },
+              "tags": "[parameters('tags')]"
+            }
+          ],
+          "outputs": {
+            "storageAccountName": {
+              "type": "string",
+              "value": "[parameters('storageAccountName')]"
+            },
+            "storageAccountId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+            },
+            "primaryBlobEndpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-05-01').primaryEndpoints.blob]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'tagsModule')]"
+      ]
+    },
+    {
+      "condition": "[if(and(variables('enableDataPlatform'), contains(parameters('workshopConfig').dataPlatform, 'enableAzureML')), parameters('workshopConfig').dataPlatform.enableAzureML, false())]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "azureML",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "workspaceName": {
+            "value": "[take(format('{0}-{1}-mlw', variables('basePrefix'), variables('unique')), 64)]"
+          },
+          "location": {
+            "value": "[parameters('workshopConfig').primaryLocation]"
+          },
+          "storageAccountId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storageAML'), '2025-04-01').outputs.storageAccountId.value]"
+          },
+          "keyVaultId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'keyVault'), '2025-04-01').outputs.keyVaultId.value]"
+          },
+          "appInsightsId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'observability'), '2025-04-01').outputs.appInsightsId.value]"
+          },
+          "computeClusterName": "[if(contains(parameters('workshopConfig').dataPlatform, 'amlComputeClusterName'), createObject('value', parameters('workshopConfig').dataPlatform.amlComputeClusterName), createObject('value', 'cpu-cluster'))]",
+          "computeVmSize": "[if(contains(parameters('workshopConfig').dataPlatform, 'amlComputeVmSize'), createObject('value', parameters('workshopConfig').dataPlatform.amlComputeVmSize), createObject('value', 'Standard_DS3_v2'))]",
+          "computeMinNodes": "[if(contains(parameters('workshopConfig').dataPlatform, 'amlComputeMinNodes'), createObject('value', parameters('workshopConfig').dataPlatform.amlComputeMinNodes), createObject('value', 0))]",
+          "computeMaxNodes": "[if(contains(parameters('workshopConfig').dataPlatform, 'amlComputeMaxNodes'), createObject('value', parameters('workshopConfig').dataPlatform.amlComputeMaxNodes), createObject('value', 4))]",
+          "tags": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'tagsModule'), '2025-04-01').outputs.tags.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "6262487025954797016"
+            }
+          },
+          "parameters": {
+            "workspaceName": {
+              "type": "string",
+              "metadata": {
+                "description": "AML workspace name."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "storageAccountId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Storage Account for AML."
+              }
+            },
+            "keyVaultId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Key Vault for AML."
+              }
+            },
+            "appInsightsId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Resource ID of Application Insights (optional)."
+              }
+            },
+            "computeClusterName": {
+              "type": "string",
+              "defaultValue": "cpu-cluster",
+              "metadata": {
+                "description": "Compute cluster name."
+              }
+            },
+            "computeVmSize": {
+              "type": "string",
+              "defaultValue": "Standard_DS3_v2",
+              "metadata": {
+                "description": "Compute VM size."
+              }
+            },
+            "computeMinNodes": {
+              "type": "int",
+              "defaultValue": 0,
+              "metadata": {
+                "description": "Min nodes for compute cluster."
+              }
+            },
+            "computeMaxNodes": {
+              "type": "int",
+              "defaultValue": 2,
+              "metadata": {
+                "description": "Max nodes for compute cluster."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "metadata": {
+                "description": "Tags to apply."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.MachineLearningServices/workspaces",
+              "apiVersion": "2024-04-01",
+              "name": "[parameters('workspaceName')]",
+              "location": "[parameters('location')]",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "sku": {
+                "name": "Basic",
+                "tier": "Basic"
+              },
+              "properties": {
+                "friendlyName": "[parameters('workspaceName')]",
+                "keyVault": "[parameters('keyVaultId')]",
+                "storageAccount": "[parameters('storageAccountId')]",
+                "applicationInsights": "[if(not(empty(parameters('appInsightsId'))), parameters('appInsightsId'), null())]",
+                "publicNetworkAccess": "Enabled"
+              },
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "type": "Microsoft.MachineLearningServices/workspaces/computes",
+              "apiVersion": "2024-04-01",
+              "name": "[format('{0}/{1}', parameters('workspaceName'), parameters('computeClusterName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "computeType": "AmlCompute",
+                "properties": {
+                  "vmSize": "[parameters('computeVmSize')]",
+                  "scaleSettings": {
+                    "minNodeCount": "[parameters('computeMinNodes')]",
+                    "maxNodeCount": "[parameters('computeMaxNodes')]",
+                    "nodeIdleTimeBeforeScaleDown": "PT120S"
+                  },
+                  "vmPriority": "Dedicated"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.MachineLearningServices/workspaces', parameters('workspaceName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "workspaceName": {
+              "type": "string",
+              "value": "[parameters('workspaceName')]"
+            },
+            "workspaceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.MachineLearningServices/workspaces', parameters('workspaceName'))]"
+            },
+            "principalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.MachineLearningServices/workspaces', parameters('workspaceName')), '2024-04-01', 'full').identity.principalId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'keyVault')]",
+        "[resourceId('Microsoft.Resources/deployments', 'observability')]",
+        "[resourceId('Microsoft.Resources/deployments', 'storageAML')]",
+        "[resourceId('Microsoft.Resources/deployments', 'tagsModule')]"
+      ]
+    },
+    {
+      "condition": "[if(and(variables('enableDataPlatform'), contains(parameters('workshopConfig').dataPlatform, 'enablePostgreSQL')), parameters('workshopConfig').dataPlatform.enablePostgreSQL, false())]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "azurePostgreSQL",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "serverName": {
+            "value": "[take(format('{0}-{1}-pg', variables('basePrefix'), variables('unique')), 63)]"
+          },
+          "location": "[if(contains(parameters('workshopConfig').dataPlatform, 'postgreSQLLocation'), createObject('value', parameters('workshopConfig').dataPlatform.postgreSQLLocation), createObject('value', parameters('workshopConfig').primaryLocation))]",
+          "administratorLogin": "[if(contains(parameters('workshopConfig').dataPlatform, 'postgreSQLAdminLogin'), createObject('value', parameters('workshopConfig').dataPlatform.postgreSQLAdminLogin), createObject('value', 'workshopadmin'))]",
+          "administratorPassword": "[if(contains(parameters('workshopConfig').dataPlatform, 'postgreSQLAdminPassword'), createObject('value', parameters('workshopConfig').dataPlatform.postgreSQLAdminPassword), createObject('value', ''))]",
+          "databaseName": "[if(contains(parameters('workshopConfig').dataPlatform, 'postgreSQLDatabaseName'), createObject('value', parameters('workshopConfig').dataPlatform.postgreSQLDatabaseName), createObject('value', 'vectordb'))]",
+          "tags": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'tagsModule'), '2025-04-01').outputs.tags.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "16727087093778261574"
+            }
+          },
+          "parameters": {
+            "serverName": {
+              "type": "string",
+              "metadata": {
+                "description": "Globally unique name prefix for the PostgreSQL server"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region"
+              }
+            },
+            "administratorLogin": {
+              "type": "string",
+              "metadata": {
+                "description": "PostgreSQL administrator username"
+              }
+            },
+            "administratorPassword": {
+              "type": "securestring",
+              "metadata": {
+                "description": "PostgreSQL administrator password"
+              }
+            },
+            "databaseName": {
+              "type": "string",
+              "metadata": {
+                "description": "Database name for workshop vector data"
+              }
+            },
+            "postgresVersion": {
+              "type": "string",
+              "defaultValue": "16",
+              "metadata": {
+                "description": "PostgreSQL version"
+              }
+            },
+            "skuName": {
+              "type": "string",
+              "defaultValue": "Standard_D2ds_v4",
+              "metadata": {
+                "description": "SKU name (Standard_D2ds_v4 recommended for dev/test)"
+              }
+            },
+            "storageSizeGB": {
+              "type": "int",
+              "defaultValue": 32,
+              "metadata": {
+                "description": "Storage size in GB"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+              "apiVersion": "2023-03-01-preview",
+              "name": "[parameters('serverName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "[parameters('skuName')]",
+                "tier": "GeneralPurpose"
+              },
+              "properties": {
+                "version": "[parameters('postgresVersion')]",
+                "administratorLogin": "[parameters('administratorLogin')]",
+                "administratorLoginPassword": "[parameters('administratorPassword')]",
+                "storage": {
+                  "storageSizeGB": "[parameters('storageSizeGB')]",
+                  "autoGrow": "Enabled"
+                },
+                "backup": {
+                  "backupRetentionDays": 7,
+                  "geoRedundantBackup": "Disabled"
+                },
+                "highAvailability": {
+                  "mode": "Disabled"
+                },
+                "network": {
+                  "publicNetworkAccess": "Enabled"
+                },
+                "authConfig": {
+                  "activeDirectoryAuth": "Enabled",
+                  "passwordAuth": "Enabled",
+                  "tenantId": "[subscription().tenantId]"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules",
+              "apiVersion": "2023-03-01-preview",
+              "name": "[format('{0}/{1}', parameters('serverName'), 'AllowAzureServices')]",
+              "properties": {
+                "startIpAddress": "0.0.0.0",
+                "endIpAddress": "0.0.0.0"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/configurations",
+              "apiVersion": "2023-03-01-preview",
+              "name": "[format('{0}/{1}', parameters('serverName'), 'azure.extensions')]",
+              "properties": {
+                "value": "VECTOR",
+                "source": "user-override"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
+              "apiVersion": "2023-03-01-preview",
+              "name": "[format('{0}/{1}', parameters('serverName'), parameters('databaseName'))]",
+              "properties": {
+                "charset": "UTF8",
+                "collation": "en_US.utf8"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "postgresServerId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]"
+            },
+            "postgresServerName": {
+              "type": "string",
+              "value": "[parameters('serverName')]"
+            },
+            "postgresDatabaseName": {
+              "type": "string",
+              "value": "[parameters('databaseName')]"
+            },
+            "postgresConnectionString": {
+              "type": "string",
+              "value": "[format('postgresql://{0}@{1}:***@{2}.postgres.database.azure.com:5432/{3}?sslmode=require', parameters('administratorLogin'), parameters('serverName'), parameters('serverName'), parameters('databaseName'))]"
+            },
+            "postgresEndpoint": {
+              "type": "string",
+              "value": "[format('{0}.postgres.database.azure.com', parameters('serverName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'tagsModule')]"
+      ]
     }
   ],
   "outputs": {
     "resourceNames": {
       "type": "object",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'coreResources'), '2025-04-01').outputs.resourceNames.value]"
+      "value": "[union(if(or(or(or(parameters('workshopConfig').features.enableAiFoundry, parameters('workshopConfig').features.enableAiSearch), parameters('workshopConfig').features.enableContainerApps), parameters('workshopConfig').features.enableCosmosDb), reference(resourceId('Microsoft.Resources/deployments', 'coreResources'), '2025-04-01').outputs.resourceNames.value, createObject()), if(variables('enableDataPlatform'), createObject('azureOpenAI', reference(resourceId('Microsoft.Resources/deployments', 'azureOpenAI'), '2025-04-01').outputs.accountName.value, 'keyVault', reference(resourceId('Microsoft.Resources/deployments', 'keyVault'), '2025-04-01').outputs.keyVaultName.value, 'storage', reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.storageAccountName.value, 'storageAML', reference(resourceId('Microsoft.Resources/deployments', 'storageAML'), '2025-04-01').outputs.storageAccountName.value, 'azureML', reference(resourceId('Microsoft.Resources/deployments', 'azureML'), '2025-04-01').outputs.workspaceName.value, 'postgres', reference(resourceId('Microsoft.Resources/deployments', 'azurePostgreSQL'), '2025-04-01').outputs.postgresServerName.value), createObject()))]"
     },
     "endpoints": {
       "type": "object",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'coreResources'), '2025-04-01').outputs.endpoints.value]"
+      "value": "[union(if(or(or(or(parameters('workshopConfig').features.enableAiFoundry, parameters('workshopConfig').features.enableAiSearch), parameters('workshopConfig').features.enableContainerApps), parameters('workshopConfig').features.enableCosmosDb), reference(resourceId('Microsoft.Resources/deployments', 'coreResources'), '2025-04-01').outputs.endpoints.value, createObject()), if(variables('enableDataPlatform'), createObject('azureOpenAIEndpoint', reference(resourceId('Microsoft.Resources/deployments', 'azureOpenAI'), '2025-04-01').outputs.endpoint.value, 'keyVaultUri', reference(resourceId('Microsoft.Resources/deployments', 'keyVault'), '2025-04-01').outputs.keyVaultUri.value, 'azureMLEndpoint', reference(resourceId('Microsoft.Resources/deployments', 'azureML'), '2025-04-01').outputs.workspaceId.value, 'postgresEndpoint', reference(resourceId('Microsoft.Resources/deployments', 'azurePostgreSQL'), '2025-04-01').outputs.postgresEndpoint.value), createObject()))]"
     },
     "workshopSettings": {
       "type": "object",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'coreResources'), '2025-04-01').outputs.workshopSettings.value]"
+      "value": "[union(if(or(or(or(parameters('workshopConfig').features.enableAiFoundry, parameters('workshopConfig').features.enableAiSearch), parameters('workshopConfig').features.enableContainerApps), parameters('workshopConfig').features.enableCosmosDb), reference(resourceId('Microsoft.Resources/deployments', 'coreResources'), '2025-04-01').outputs.workshopSettings.value, createObject()), if(variables('enableDataPlatform'), createObject('dataLakeContainerName', 'lakehouse', 'postgresDatabase', if(contains(parameters('workshopConfig').dataPlatform, 'postgreSQLDatabaseName'), parameters('workshopConfig').dataPlatform.postgreSQLDatabaseName, 'vectordb')), createObject()))]"
     },
     "managedIdentityPrincipals": {
       "type": "object",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'coreResources'), '2025-04-01').outputs.managedIdentityPrincipals.value]"
+      "value": "[union(if(or(or(or(parameters('workshopConfig').features.enableAiFoundry, parameters('workshopConfig').features.enableAiSearch), parameters('workshopConfig').features.enableContainerApps), parameters('workshopConfig').features.enableCosmosDb), reference(resourceId('Microsoft.Resources/deployments', 'coreResources'), '2025-04-01').outputs.managedIdentityPrincipals.value, createObject()), createObject())]"
     }
   }
 }

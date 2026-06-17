@@ -23,7 +23,8 @@
           "enableAiFoundry": true,
           "enableAiSearch": true,
           "enableContainerApps": true,
-          "enableCosmosDb": true
+          "enableCosmosDb": true,
+          "enableDataPlatform": true
         },
 
         "aiFoundry": {
@@ -85,6 +86,41 @@
             { "name": "inventory", "partitionKey": "/id", "throughput": 400 },
             { "name": "marketing_campaigns", "partitionKey": "/id", "throughput": 400 }
           ]
+        },
+
+        "//dataPlatform": "Day 2 - Data Platform components for Lakehouse, Vector Search, and Azure ML labs",
+        "dataPlatform": {
+          "//Note": "Set adminObjectId to the Entra Object ID of the workshop organizer/admin",
+          "tenantId": "REPLACE_WITH_YOUR_TENANT_ID",
+          "adminObjectId": "REPLACE_WITH_YOUR_ADMIN_OBJECT_ID",
+          "enableAzureOpenAI": true,
+          "azureOpenAILocation": "eastus",
+          "azureOpenAIDeployments": [
+            {
+              "name": "text-embedding-ada-002",
+              "model": "text-embedding-ada-002",
+              "version": "2",
+              "skuName": "Standard",
+              "capacity": 120
+            },
+            {
+              "name": "gpt-4o",
+              "model": "gpt-4o",
+              "version": "2024-08-06",
+              "skuName": "Standard",
+              "capacity": 30
+            }
+          ],
+          "enableAzureML": true,
+          "amlComputeClusterName": "cpu-cluster",
+          "amlComputeVmSize": "Standard_DS3_v2",
+          "amlComputeMinNodes": 0,
+          "amlComputeMaxNodes": 4,
+          "enablePostgreSQL": false,
+          "postgreSQLLocation": "eastus",
+          "postgreSQLAdminLogin": "workshopadmin",
+          "postgreSQLAdminPassword": "",
+          "postgreSQLDatabaseName": "vectordb"
         }
       }
     }
