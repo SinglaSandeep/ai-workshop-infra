@@ -143,7 +143,7 @@ try {
             aiFoundryName     = @{ value = $aiFoundryName }
             location          = @{ value = $foundryLocation }
             projectNames      = @{ value = $projectNames }
-            groupObjectId     = @{ value = ($GroupObjectId ?? '') }
+            groupObjectId     = @{ value = $(if ($GroupObjectId) { $GroupObjectId } else { '' }) }
             groupPrincipalType = @{ value = $GroupPrincipalType }
         }
     }
@@ -170,7 +170,7 @@ try {
 
     # Rewrite the projects file: keep a comment header, then write one
     # "project | foundryEndpoint" row per project.
-    $accessNote = [string]::IsNullOrWhiteSpace($GroupObjectId) ? 'no group access granted' : "group $GroupObjectId granted Azure AI User on all projects"
+    $accessNote = if ([string]::IsNullOrWhiteSpace($GroupObjectId)) { 'no group access granted' } else { "group $GroupObjectId granted Azure AI User on all projects" }
     $header = @(
         '# Foundry projects to create — one project name per line.'
         '#'
