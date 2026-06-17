@@ -20,10 +20,10 @@
 
         "//features": "Turn whole resource groups on/off. enableDataPlatform covers Pradipta's labs (SQL, AOAI, AML, Storage). enableFabric provisions a Fabric capacity.",
         "features": {
-          "enableAiFoundry": true,
-          "enableAiSearch": true,
-          "enableContainerApps": true,
-          "enableCosmosDb": true,
+          "enableAiFoundry": false,
+          "enableAiSearch": false,
+          "enableContainerApps": false,
+          "enableCosmosDb": false,
           "enableDataPlatform": true,
           "enableFabric": false
         },
@@ -55,8 +55,9 @@
             }
           ],
 
-          "//sql": "Azure SQL Database with VECTOR type support for Lab 03. Use a region where VECTOR is GA and SQL provisioning is allowed.",
-          "sqlLocation": "eastus",
+          "//postgres": "PostgreSQL with pgvector for Lab 03 (replaces SQL due to subscription restrictions).",
+          "sqlAdministratorLogin": "pgadmin",
+          "sqlAdministratorPassword": "P@ssw0rd123!",
           "sqlDatabaseName": "db_pepsi_rag",
 
           "//aml": "Azure Machine Learning workspace + compute for Lab 04.",

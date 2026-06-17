@@ -89,16 +89,15 @@ module openai './modules/azure-openai.bicep' = if (workshopConfig.features.enabl
   }
 }
 
-// Azure SQL Database with VECTOR support (Lab 03)
-module sql './modules/azure-sql.bicep' = if (workshopConfig.features.enableDataPlatform) {
-  name: 'azureSql'
+// Azure Database for PostgreSQL with pgvector (Lab 03) - replaces SQL due to subscription restrictions
+module postgres './modules/azure-postgres.bicep' = if (workshopConfig.features.enableDataPlatform) {
+  name: 'azurePostgres'
   params: {
-    serverName: take('${basePrefix}-${unique}-sql', 63)
-    databaseName: workshopConfig.dataPlatform.sqlDatabaseName
-    location: workshopConfig.dataPlatform.sqlLocation
-    aadAdminLogin: workshopConfig.dataPlatform.aadAdminLogin
-    aadAdminObjectId: workshopConfig.dataPlatform.adminObjectId
-    tenantId: tenant().tenantId
+    serverName: take('${basePrefix}-${unique}-pg', 63)
+    databaseName: workshopConfig.dataPlatform.sqlDatabaseName  // reuse same DB name
+    location: workshopConfig.primaryLocation
+    administratorLogin: workshopConfig.dataPlatform.sqlAdministratorLogin
+    administratorPassword: workshopConfig.dataPlatform.sqlAdministratorPassword
     tags: tagsModule.outputs.tags
   }
 }
@@ -152,8 +151,8 @@ output resourceNames object = {
   storageAccount: workshopConfig.features.enableDataPlatform ? storage.outputs.storageAccountName : ''
   keyVault: workshopConfig.features.enableDataPlatform ? keyVault.outputs.keyVaultName : ''
   openAi: workshopConfig.features.enableDataPlatform ? openai.outputs.accountName : ''
-  sqlServer: workshopConfig.features.enableDataPlatform ? sql.outputs.sqlServerName : ''
-  sqlDatabase: workshopConfig.features.enableDataPlatform ? sql.outputs.databaseName : ''
+  postgresServer: workshopConfig.features.enableDataPlatform ? postgres.outputs.postgresServerName : ''
+  postgresDatabase: workshopConfig.features.enableDataPlatform ? postgres.outputs.postgresDatabaseName : ''
   amlWorkspace: workshopConfig.features.enableDataPlatform ? aml.outputs.workspaceName : ''
   fabricCapacity: workshopConfig.features.enableFabric ? fabric.outputs.capacityName : ''
   dataAppInsights: workshopConfig.features.enableDataPlatform ? observability.outputs.appInsightsName : ''
@@ -171,7 +170,7 @@ output endpoints object = {
   searchEndpoint: (workshopConfig.features.enableAiSearch) ? core.outputs.endpoints.searchEndpoint : ''
   // Pradipta's endpoints
   openAiEndpoint: workshopConfig.features.enableDataPlatform ? openai.outputs.endpoint : ''
-  sqlServerFqdn: workshopConfig.features.enableDataPlatform ? sql.outputs.sqlServerFqdn : ''
+  postgresEndpoint: workshopConfig.features.enableDataPlatform ? postgres.outputs.postgresEndpoint : ''
   storageEndpoint: workshopConfig.features.enableDataPlatform ? storage.outputs.primaryDfsEndpoint : ''
   keyVaultUri: workshopConfig.features.enableDataPlatform ? keyVault.outputs.keyVaultUri : ''
 }
