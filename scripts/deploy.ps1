@@ -84,10 +84,12 @@ function Export-DeploymentOutputs {
         throw "Could not list deployments in resource group '$ResourceGroup'. Did 'azd up' succeed?"
     }
 
-    $deploymentName = $deploymentsJson |
-        ConvertFrom-Json |
+    $latestDeployment = @($deploymentsJson | ConvertFrom-Json) |
+        Where-Object { $_ -and $_.name } |
         Sort-Object { $_.properties.timestamp } |
-        Select-Object -Last 1 -ExpandProperty name
+        Select-Object -Last 1
+
+    $deploymentName = if ($latestDeployment) { $latestDeployment.name } else { $null }
 
     if ([string]::IsNullOrWhiteSpace($deploymentName)) {
         throw "Could not find a deployment in resource group '$ResourceGroup'. Did 'azd up' succeed?"
