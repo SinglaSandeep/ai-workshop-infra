@@ -1,141 +1,158 @@
 <#
 .SYNOPSIS
-    Grant Day 2 Data Platform workshop participants their access (RBAC).
+    Grants Day 2 (Data) participant access for the slim PepsiCo workshop.
 
 .DESCRIPTION
-    Deploys infra/user-access-day2.bicep, which grants every principal listed in
-    infra/user-access-day2.parameters.json:
-      - Azure OpenAI  : Cognitive Services User (inference only, no deployments).
-      - Azure ML      : AzureML Data Scientist (run experiments, no config changes).
-      - Storage       : Storage Blob Data Contributor (read/write Lakehouse data).
-      - Key Vault     : Key Vault Secrets User (read connection strings).
-      - PostgreSQL    : Reader role (data plane access via SQL GRANT).
+    Day 2 has four resources participants need access to. Only one of them
+    is plain Azure RBAC — the rest must be granted in their respective
+    portals or via T-SQL. This script:
 
-    Run this AFTER scripts/deploy.ps1 or azd up. Edit 
-    infra/user-access-day2.parameters.json first to list the real Entra users 
-    or groups and adjust access levels.
+    1. Runs user-access-day2-slim.bicep to grant Cognitive Services User on
+       Sandeep's existing Azure OpenAI account.
+    2. Prints copy/paste instructions for Fabric admin portal + Purview
+       Studio role assignments.
+    3. Optionally runs setup-sql-vector.sql against the deployed Azure SQL
+       to CREATE USER FROM EXTERNAL PROVIDER for the workshop group and
+       seed the demo VECTOR table.
 
-.PARAMETER ResourceGroup
-    Target resource group. Defaults to the azd environment value.
+    Run AFTER deploy-day2.ps1.
 
-.PARAMETER SubscriptionId
-    Azure subscription ID. Optional.
+.PARAMETER ResourceGroupName
+    The Day 2 RG (same as Sandeep's Day 1 RG).
 
-.PARAMETER MainOutputsFile
-    Path to main deployment outputs JSON file.
+.PARAMETER WorkshopGroupObjectId
+    Entra Object ID of the workshop participants security group (or single
+    user). This is the same object that gets the AOAI role + the SQL user +
+    the Fabric capacity contributor role + the Purview Data Reader role.
 
-.PARAMETER UserAccessParametersFile
-    Path to user access parameters JSON file.
+.PARAMETER WorkshopGroupDisplayName
+    Display name of the Entra group (used in the T-SQL CREATE USER call).
+    Required if you also pass -RunSqlSetup.
 
-.PARAMETER DeploymentName
-    Name for the deployment.
+.PARAMETER PrincipalType
+    'Group' (default) or 'User'.
+
+.PARAMETER SandeepAzureOpenAIName
+    Resource name of Sandeep's AOAI account. Leave blank to skip the AOAI
+    grant.
+
+.PARAMETER SandeepAzureOpenAIResourceGroup
+    RG of Sandeep's AOAI if it lives in a different RG. Empty = same RG.
+
+.PARAMETER RunSqlSetup
+    Also run Allfiles/lab03/setup-sql-vector.sql against the SQL server
+    output by deploy-day2.ps1. Requires sqlcmd and the SQL Entra admin to
+    run this script (so they can CREATE USER and GRANT).
 
 .EXAMPLE
-    ./scripts/grant-user-access-day2.ps1
-
-.EXAMPLE
-    ./scripts/grant-user-access-day2.ps1 -ResourceGroup "rg-workshop-prod"
+    ./scripts/grant-user-access-day2.ps1 `
+        -ResourceGroupName rg-pepsi-shared `
+        -WorkshopGroupObjectId 11111111-2222-3333-4444-555555555555 `
+        -WorkshopGroupDisplayName 'pepsi-workshop-day2-attendees' `
+        -SandeepAzureOpenAIName aoai-pepsi-shared `
+        -RunSqlSetup
 #>
+[CmdletBinding()]
 param(
-    [Parameter(Mandatory = $false)]
-    [string]$ResourceGroup,
-
-    [Parameter(Mandatory = $false)]
-    [string]$SubscriptionId,
-
-    [Parameter(Mandatory = $false)]
-    [string]$MainOutputsFile = '.azure/main-outputs.json',
-
-    [Parameter(Mandatory = $false)]
-    [string]$UserAccessParametersFile = 'infra/user-access-day2.parameters.json',
-
-    [Parameter(Mandatory = $false)]
-    [string]$DeploymentName = 'workshop-user-access-day2'
+    [Parameter(Mandatory = $true)] [string] $ResourceGroupName,
+    [Parameter(Mandatory = $true)] [string] $WorkshopGroupObjectId,
+    [string] $WorkshopGroupDisplayName,
+    [ValidateSet('Group','User')] [string] $PrincipalType = 'Group',
+    [string] $SandeepAzureOpenAIName = '',
+    [string] $SandeepAzureOpenAIResourceGroup = '',
+    [switch] $RunSqlSetup
 )
 
 $ErrorActionPreference = 'Stop'
+$projectRoot = Split-Path -Parent $PSScriptRoot
+$bicep = Join-Path $projectRoot 'infra/user-access-day2-slim.bicep'
+$outputsFile = Join-Path $projectRoot '.azure/main-day2-outputs.json'
 
-function Get-ProjectRoot {
-    Split-Path -Parent $PSScriptRoot
+if (-not (Test-Path $outputsFile)) {
+    throw "Day 2 deployment outputs not found at $outputsFile. Run ./scripts/deploy-day2.ps1 first."
 }
 
-function Get-AzdEnvValues {
-    $values = @{}
-    $lines = azd env get-values 2>$null
-    foreach ($line in $lines) {
-        if ($line -match '^([^=]+)=(.*)$') {
-            $values[$matches[1]] = $matches[2].Trim('"')
-        }
-    }
-    return $values
-}
+$outputs = Get-Content $outputsFile | ConvertFrom-Json
 
-$projectRoot = Get-ProjectRoot
-Push-Location $projectRoot
-try {
-    if ([string]::IsNullOrWhiteSpace($ResourceGroup)) {
-        $ResourceGroup = (Get-AzdEnvValues)['AZURE_RESOURCE_GROUP']
-    }
-    if ([string]::IsNullOrWhiteSpace($ResourceGroup)) {
-        throw 'AZURE_RESOURCE_GROUP not found. Pass -ResourceGroup or run inside an azd environment.'
-    }
-    if (-not (Test-Path $MainOutputsFile)) {
-        throw "Deployment outputs '$MainOutputsFile' not found. Run 'azd up' or './scripts/deploy.ps1' first."
-    }
-    if ($SubscriptionId) {
-        az account set --subscription $SubscriptionId | Out-Null
-    }
+# ---------------------------------------------------------------------------
+# 1) AOAI RBAC via Bicep
+# ---------------------------------------------------------------------------
+Write-Host "== Day 2 user access =="
+if ($SandeepAzureOpenAIName) {
+    Write-Host "[1/3] Granting Cognitive Services User on AOAI '$SandeepAzureOpenAIName'..."
 
-    # Extract Day 2 resource names from deployment outputs
-    $outputs = Get-Content $MainOutputsFile -Raw | ConvertFrom-Json
-    $names = $outputs.resourceNames.value
-
-    # Build parameters for Day 2 resources (handle missing properties gracefully)
-    $azureOpenAIName = if ($names.PSObject.Properties['azureOpenAI']) { $names.azureOpenAI } else { '' }
-    $azureMLName = if ($names.PSObject.Properties['azureML']) { $names.azureML } else { '' }
-    $storageName = if ($names.PSObject.Properties['storage']) { $names.storage } else { '' }
-    $postgresName = if ($names.PSObject.Properties['postgres']) { $names.postgres } else { '' }
-    $keyVaultName = if ($names.PSObject.Properties['keyVault']) { $names.keyVault } else { '' }
-
-    Write-Host '== Day 2: Granting participant access to Data Platform resources (RBAC) ==' -ForegroundColor Cyan
-    Write-Host ''
-    Write-Host "Resource Group    : $ResourceGroup" -ForegroundColor Gray
-    Write-Host "Azure OpenAI      : $azureOpenAIName" -ForegroundColor Gray
-    Write-Host "Azure ML Workspace: $azureMLName" -ForegroundColor Gray
-    Write-Host "Storage Account   : $storageName" -ForegroundColor Gray
-    Write-Host "PostgreSQL Server : $postgresName" -ForegroundColor Gray
-    Write-Host "Key Vault         : $keyVaultName" -ForegroundColor Gray
-    Write-Host ''
+    $deployName = "pepsi-day2-useraccess-$(Get-Date -Format 'yyyyMMddHHmmss')"
+    $usersJson = (@(
+        @{ principalId = $WorkshopGroupObjectId; principalType = $PrincipalType }
+    ) | ConvertTo-Json -Compress -AsArray)
 
     az deployment group create `
-        --resource-group $ResourceGroup `
-        --name $DeploymentName `
-        --template-file 'infra/user-access-day2.bicep' `
-        --parameters ('@' + $UserAccessParametersFile) `
-        --parameters "azureOpenAIName=$azureOpenAIName" `
-        --parameters "azureMLWorkspaceName=$azureMLName" `
-        --parameters "storageAccountName=$storageName" `
-        --parameters "postgresServerName=$postgresName" `
-        --parameters "keyVaultName=$keyVaultName" `
-        --only-show-errors | Out-Null
+        --resource-group $ResourceGroupName `
+        --name $deployName `
+        --template-file $bicep `
+        --parameters workshopUsers="$usersJson" `
+                     sandeepAzureOpenAIName=$SandeepAzureOpenAIName `
+                     sandeepAzureOpenAIResourceGroup=$SandeepAzureOpenAIResourceGroup `
+        --output none
+    if ($LASTEXITCODE -ne 0) { throw "AOAI RBAC deployment failed." }
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "Day 2 participant access deployment failed with exit code $LASTEXITCODE. Check that every objectId in $UserAccessParametersFile is a real Entra user/group ID (not the 00000000... placeholder)."
+    Write-Host "      Done. RBAC may take a few minutes to propagate."
+} else {
+    Write-Host "[1/3] Skipped AOAI grant (no -SandeepAzureOpenAIName provided)."
+}
+
+# ---------------------------------------------------------------------------
+# 2) Manual portal steps
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "[2/3] Manual portal grants - please complete:"
+Write-Host ""
+Write-Host "   --- Fabric capacity admin (Lab 01 + 02) ---"
+Write-Host "   Go to https://app.fabric.microsoft.com/admin-portal/capacities"
+Write-Host "   Open capacity '$($outputs.fabricCapacityName.value)' -> Capacity admins -> Add"
+Write-Host "       $WorkshopGroupDisplayName  ($WorkshopGroupObjectId)"
+Write-Host "   Then create a workspace and add the same group as Workspace Contributor."
+Write-Host ""
+Write-Host "   --- Purview Data Reader (Governance demo) ---"
+Write-Host "   Go to Purview Studio for account '$($outputs.purviewAccountName.value)'"
+Write-Host "   Data Map -> Collections -> Root -> Role assignments -> Data Readers -> Add"
+Write-Host "       $WorkshopGroupDisplayName  ($WorkshopGroupObjectId)"
+Write-Host ""
+
+# ---------------------------------------------------------------------------
+# 3) SQL CREATE USER + table setup
+# ---------------------------------------------------------------------------
+if ($RunSqlSetup) {
+    if (-not $WorkshopGroupDisplayName) {
+        throw "-RunSqlSetup requires -WorkshopGroupDisplayName so the T-SQL CREATE USER FROM EXTERNAL PROVIDER can target the right principal."
     }
 
-    Write-Host ''
-    Write-Host '✅ Day 2 participant access granted successfully!' -ForegroundColor Green
-    Write-Host ''
-    Write-Host 'Participants now have:' -ForegroundColor Cyan
-    Write-Host '  - Azure OpenAI: Cognitive Services User (inference only)' -ForegroundColor Gray
-    Write-Host '  - Azure ML: AzureML Data Scientist (run experiments)' -ForegroundColor Gray
-    Write-Host '  - Storage: Storage Blob Data Contributor (read/write data)' -ForegroundColor Gray
-    Write-Host '  - Key Vault: Key Vault Secrets User (read secrets)' -ForegroundColor Gray
-    if ($postgresName) {
-        Write-Host '  - PostgreSQL: Reader role (configure data plane via SQL GRANT)' -ForegroundColor Gray
+    $sqlScript = Join-Path $projectRoot 'Allfiles/lab03/setup-sql-vector.sql'
+    if (-not (Test-Path $sqlScript)) {
+        throw "Cannot find SQL setup script at $sqlScript"
     }
-    Write-Host ''
+
+    $server = $outputs.sqlServerFqdn.value
+    $database = $outputs.sqlDatabaseName.value
+    if (-not $server) {
+        Write-Warning "[3/3] SQL was skipped at deploy time (no sqlServerFqdn output). Skipping SQL setup."
+    } else {
+        Write-Host "[3/3] Running SQL VECTOR setup on $server / $database..."
+        $tmp = New-TemporaryFile
+        try {
+            (Get-Content $sqlScript -Raw) `
+                -replace '\$\(WORKSHOP_GROUP_NAME\)', $WorkshopGroupDisplayName `
+                | Set-Content -Path $tmp.FullName -Encoding utf8
+            sqlcmd -S $server -d $database -G -I -i $tmp.FullName
+            if ($LASTEXITCODE -ne 0) { throw "sqlcmd failed with exit $LASTEXITCODE" }
+        } finally {
+            Remove-Item $tmp.FullName -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "      Done. The demo 'documents' VECTOR(1536) table is ready."
+    }
+} else {
+    Write-Host "[3/3] Skipped SQL setup (pass -RunSqlSetup to run setup-sql-vector.sql)."
 }
-finally {
-    Pop-Location
-}
+
+Write-Host ""
+Write-Host "All Day 2 access grants complete (or queued for portal admin)."

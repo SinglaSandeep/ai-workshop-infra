@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "//": "Day 2 slim user-access parameters. Replace the placeholders, then run ./scripts/grant-user-access-day2.ps1.",
+
+    "workshopUsers": {
+      "value": [
+        {
+          "//": "One entry per participant or per Entra security group of participants.",
+          "principalId": "REPLACE_WITH_ENTRA_GROUP_OR_USER_OBJECT_ID",
+          "principalType": "Group"
+        }
+      ]
+    },
+
+    "sandeepAzureOpenAIName": {
+      "//": "Name (NOT endpoint) of Sandeep's Day 1 Azure OpenAI account. Lab 03 calls embeddings + chat from this. Leave blank to skip the AOAI grant.",
+      "value": ""
+    },
+    "sandeepAzureOpenAIResourceGroup": {
+      "//": "Resource group of Sandeep's AOAI. Empty = same RG as the Day 2 deployment.",
+      "value": ""
+    }
+  }
+}

@@ -3,3 +3,8 @@
 *.user
 *.tmp
 *.log
+
+# Real attendee CSVs (contain Entra Object IDs). Sample template is fine.
+Allfiles/attendees-test*.csv
+Allfiles/attendees-real*.csv
+Allfiles/attendees.csv

@@ -15,7 +15,7 @@ param location string
 @description('Fabric capacity SKU (F2, F4, F8, etc.).')
 param skuName string = 'F2'
 
-@description('Object ID of the capacity admin (Entra user).')
+@description('Object ID of the capacity admin (Entra user). NOTE: Microsoft.Fabric/capacities accepts either an Entra Object ID or a UPN (email-style) string here. Some tenants accept only one or the other — try UPN if Object ID returns "All provided principals must be existing".')
 param adminObjectId string
 
 @description('Tags to apply.')

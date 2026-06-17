@@ -1,0 +1,52 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "//": "Day 2 (Data) slim infrastructure parameters. Fill in the REPLACE_ME values, then run ./scripts/deploy-day2.ps1.",
+
+    "workshopName": {
+      "value": "pepsiws"
+    },
+    "environmentName": {
+      "value": "day2"
+    },
+
+    "//location": "Region for Fabric + SQL + Purview. Must support all three. Recommended: eastus2, swedencentral, westus3.",
+    "location": {
+      "value": "eastus2"
+    },
+
+    "//fabric": "Set enableFabricCapacity=false if your customer already has a Fabric capacity in the tenant.",
+    "enableFabricCapacity": {
+      "value": true
+    },
+    "fabricSkuName": {
+      "value": "F2"
+    },
+    "fabricAdminObjectId": {
+      "//": "Entra Object ID of the user OR group that should be the Fabric capacity admin. Find with: az ad signed-in-user show --query id -o tsv",
+      "value": "REPLACE_WITH_FABRIC_ADMIN_OBJECT_ID"
+    },
+
+    "//sqlVector": "Lab 03 SQL VECTOR.",
+    "enableSqlVector": {
+      "value": true
+    },
+    "sqlAadAdminLogin": {
+      "//": "UPN of the Entra admin for the SQL server (Entra-only auth).",
+      "value": "REPLACE_WITH_SQL_ADMIN_UPN"
+    },
+    "sqlAadAdminObjectId": {
+      "//": "Entra Object ID of the SQL admin (same person/group as sqlAadAdminLogin).",
+      "value": "REPLACE_WITH_SQL_ADMIN_OBJECT_ID"
+    },
+    "sqlDatabaseName": {
+      "value": "vectordb"
+    },
+
+    "//purview": "Governance demo.",
+    "enablePurview": {
+      "value": true
+    }
+  }
+}

@@ -1,5 +1,0 @@
-name: ai-workshop-infra
-infra:
-  provider: bicep
-  path: infra
-  module: main
