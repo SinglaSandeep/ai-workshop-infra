@@ -46,14 +46,6 @@
               "skuName": "GlobalStandard",
               "//capacity": "Capacity is in thousands of TPM; 2000 = 2 million TPM.",
               "capacity": 2000
-            },
-            {
-              "name": "gpt-5.4-mini",
-              "model": "gpt-5.4-mini",
-              "version": "2025-08-07",
-              "skuName": "GlobalStandard",
-              "//capacity": "Capacity is in thousands of TPM; 2000 = 2 million TPM.",
-              "capacity": 2000
             }
           ]
         },

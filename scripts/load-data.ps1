@@ -118,7 +118,7 @@ try {
     }
 
     Write-Host 'Waiting 60s for role assignments to propagate...'
-    Start-Sleep -Seconds 60
+    # Start-Sleep -Seconds 60
 
     # --- Step 2: update the workshop .env (upsert resource values) ---------
     Write-Host '== Updating workshop .env with provisioned resource values =='

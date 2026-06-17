@@ -73,6 +73,34 @@ function Clear-SoftDeletedFoundryAccounts {
     }
 }
 
+# azd and the Azure CLI (az) authenticate independently. It is common for
+# `azd up` to succeed (so all resources get created) while `az` is either not
+# logged in or pointed at a different subscription. When that happens the
+# `az deployment group ...` calls below return nothing, and a PowerShell
+# pipeline that pipes empty output into Set-Content silently creates NO file
+# and raises NO error (true on both Windows PowerShell 5.1 and PowerShell 7).
+# The result is a "successful" run with no main-outputs.json. Guard against it
+# by aligning az with azd's subscription and checking every az exit code.
+function Assert-AzCliContext {
+    param([string]$SubscriptionId)
+
+    $account = az account show -o json 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($account -join ''))) {
+        throw "The Azure CLI is not logged in. Run 'az login' (and 'az account set --subscription <id>') so this script can read the deployment outputs, then re-run ./scripts/deploy.ps1."
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($SubscriptionId)) {
+        $currentSub = ($account | ConvertFrom-Json).id
+        if ($currentSub -ne $SubscriptionId) {
+            Write-Host "Aligning Azure CLI subscription with azd ($SubscriptionId)..."
+            az account set --subscription $SubscriptionId | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Could not switch the Azure CLI to subscription '$SubscriptionId'. Run 'az login' against that subscription, then re-run ./scripts/deploy.ps1."
+            }
+        }
+    }
+}
+
 function Export-DeploymentOutputs {
     param(
         [string]$ResourceGroup,
@@ -80,19 +108,19 @@ function Export-DeploymentOutputs {
     )
 
     $deploymentsJson = az deployment group list --resource-group $ResourceGroup -o json
-    if ([string]::IsNullOrWhiteSpace($deploymentsJson)) {
-        throw "Could not list deployments in resource group '$ResourceGroup'. Did 'azd up' succeed?"
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($deploymentsJson -join ''))) {
+        throw "Could not list deployments in resource group '$ResourceGroup' (az exit code $LASTEXITCODE). Confirm 'azd up' succeeded and that the Azure CLI is logged in to the same subscription as azd (az login / az account set --subscription <id>)."
     }
 
     $latestDeployment = @($deploymentsJson | ConvertFrom-Json) |
-        Where-Object { $_ -and $_.name } |
+        Where-Object { $_ -and $_.name -and $_.properties -and $_.properties.outputs } |
         Sort-Object { $_.properties.timestamp } |
         Select-Object -Last 1
 
     $deploymentName = if ($latestDeployment) { $latestDeployment.name } else { $null }
 
     if ([string]::IsNullOrWhiteSpace($deploymentName)) {
-        throw "Could not find a deployment in resource group '$ResourceGroup'. Did 'azd up' succeed?"
+        throw "Could not find a deployment with outputs in resource group '$ResourceGroup'. Did 'azd up' succeed?"
     }
 
     $outputsDir = Split-Path -Parent $OutputPath
@@ -100,8 +128,14 @@ function Export-DeploymentOutputs {
         New-Item -ItemType Directory -Path $outputsDir -Force | Out-Null
     }
 
-    az deployment group show --resource-group $ResourceGroup --name $deploymentName --query properties.outputs -o json |
-        Set-Content -Path $OutputPath -Encoding utf8
+    # Capture the outputs FIRST so a failed az call cannot leave us with a
+    # missing/empty file and a silent exit-0.
+    $outputsJson = az deployment group show --resource-group $ResourceGroup --name $deploymentName --query properties.outputs -o json
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($outputsJson -join ''))) {
+        throw "Failed to read outputs for deployment '$deploymentName' in resource group '$ResourceGroup' (az exit code $LASTEXITCODE). The Azure CLI may not be logged in or may be pointed at a different subscription than azd."
+    }
+
+    Set-Content -Path $OutputPath -Value $outputsJson -Encoding utf8
 
     Write-Host "Deployment outputs written to $OutputPath"
 }
@@ -131,6 +165,11 @@ try {
     if ([string]::IsNullOrWhiteSpace($resourceGroup)) {
         throw 'AZURE_RESOURCE_GROUP was not found in the azd environment.'
     }
+
+    # azd just provisioned everything, but the steps below read the deployment
+    # via the Azure CLI, which authenticates separately from azd. Make sure az is
+    # logged in to the same subscription before we try to export the outputs.
+    Assert-AzCliContext -SubscriptionId $envValues['AZURE_SUBSCRIPTION_ID']
 
     Export-DeploymentOutputs -ResourceGroup $resourceGroup -OutputPath (Join-Path $projectRoot '.azure/main-outputs.json')
 
