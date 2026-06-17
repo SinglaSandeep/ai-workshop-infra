@@ -43,6 +43,17 @@ git checkout Pradipta_Day2_v2
 
 ### 1. Provision the 3 resources
 
+Simplest path — uses signed-in identity as Fabric / SQL admin, creates
+`rg-pepsi-day2` in `eastus2` (SQL in `centralus`):
+
+```powershell
+az login
+az account set --subscription <their-sub-id>
+./scripts/deploy-day2.ps1
+```
+
+Override anything you don't like:
+
 ```powershell
 ./scripts/deploy-day2.ps1 `
     -ResourceGroupName    rg-pepsi-shared `
@@ -53,6 +64,18 @@ git checkout Pradipta_Day2_v2
     -SqlAadAdminObjectId  '<their-objectId>' `
     -FabricSku            F2
 ```
+
+**Defaults applied if you omit the flag:**
+
+| Flag | Default |
+|---|---|
+| `-ResourceGroupName` | `rg-pepsi-day2` (auto-created if missing) |
+| `-Location` | `eastus2` (or the RG's existing region if RG exists) |
+| `-SqlLocation` | `centralus` (avoids common `eastus2` SQL throttling) |
+| `-FabricAdminObjectId` | Signed-in user's UPN (from `az account show`) |
+| `-SqlAadAdminLogin` | Signed-in user's UPN |
+| `-SqlAadAdminObjectId` | Signed-in user's Object ID |
+| `-FabricSku` | `F2` |
 
 > **Common gotchas:**
 > - **`RegionDoesNotAllowProvisioning`** on SQL → use `-SqlLocation centralus` (or another region)
