@@ -70,7 +70,7 @@ try {
         throw "Deployment outputs '$MainOutputsFile' not found. Run ./scripts/deploy.ps1 first."
     }
 
-    $outputs = Get-Content $MainOutputsFile -Raw | ConvertFrom-Json -Depth 50
+    $outputs = Get-Content $MainOutputsFile -Raw | ConvertFrom-Json
     $names = $outputs.resourceNames.value
     $endpoints = $outputs.endpoints.value
     $settings = $outputs.workshopSettings.value

@@ -102,7 +102,7 @@ try {
     # Group that gets Azure AI User on EVERY project. Default to the first Group
     # entry in user-access.parameters.json when -GroupObjectId is not passed.
     if ([string]::IsNullOrWhiteSpace($GroupObjectId) -and (Test-Path $UserAccessParametersFile)) {
-        $uaParams = Get-Content $UserAccessParametersFile -Raw | ConvertFrom-Json -Depth 50
+        $uaParams = Get-Content $UserAccessParametersFile -Raw | ConvertFrom-Json
         $firstGroup = $uaParams.parameters.workshopUsers.value |
             Where-Object { $_.principalType -eq 'Group' } |
             Select-Object -First 1
@@ -165,7 +165,7 @@ try {
         Remove-Item $paramsFile -ErrorAction SilentlyContinue
     }
 
-    $projectOutputs = ($outputsJson | ConvertFrom-Json -Depth 50).projects.value
+    $projectOutputs = ($outputsJson | ConvertFrom-Json).projects.value
 
     # Rewrite the projects file: keep a comment header, then write one
     # "project | foundryEndpoint" row per project.

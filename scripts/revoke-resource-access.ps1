@@ -54,10 +54,10 @@ try {
     }
 
     $subscriptionId = (az account show --query id -o tsv)
-    $outputs = Get-Content $MainOutputsFile -Raw | ConvertFrom-Json -Depth 50
+    $outputs = Get-Content $MainOutputsFile -Raw | ConvertFrom-Json
     $names = $outputs.resourceNames.value
     $principals = $outputs.managedIdentityPrincipals.value
-    $grants = (Get-Content $ResourceAccessParametersFile -Raw | ConvertFrom-Json -Depth 50).parameters.resourceGrants.value
+    $grants = (Get-Content $ResourceAccessParametersFile -Raw | ConvertFrom-Json).parameters.resourceGrants.value
 
     $searchScope = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Search/searchServices/$($names.aiSearch)"
     $acrScope = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.ContainerRegistry/registries/$($names.containerRegistry)"

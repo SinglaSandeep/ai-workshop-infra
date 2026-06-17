@@ -68,7 +68,7 @@ try {
         az account set --subscription $SubscriptionId | Out-Null
     }
 
-    $names = (Get-Content $MainOutputsFile -Raw | ConvertFrom-Json -Depth 50).resourceNames.value
+    $names = (Get-Content $MainOutputsFile -Raw | ConvertFrom-Json).resourceNames.value
 
     Write-Host '== Part D: granting participant access (RBAC) =='
     az deployment group create `

@@ -68,7 +68,7 @@ try {
         az account set --subscription $SubscriptionId | Out-Null
     }
 
-    $outputs = Get-Content $MainOutputsFile -Raw | ConvertFrom-Json -Depth 50
+    $outputs = Get-Content $MainOutputsFile -Raw | ConvertFrom-Json
     $names = $outputs.resourceNames.value
     $principals = $outputs.managedIdentityPrincipals.value
 

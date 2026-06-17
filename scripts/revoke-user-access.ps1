@@ -54,8 +54,8 @@ try {
     }
 
     $subscriptionId = (az account show --query id -o tsv)
-    $names = (Get-Content $MainOutputsFile -Raw | ConvertFrom-Json -Depth 50).resourceNames.value
-    $params = (Get-Content $UserAccessParametersFile -Raw | ConvertFrom-Json -Depth 50).parameters
+    $names = (Get-Content $MainOutputsFile -Raw | ConvertFrom-Json).resourceNames.value
+    $params = (Get-Content $UserAccessParametersFile -Raw | ConvertFrom-Json).parameters
     $users = $params.workshopUsers.value
 
     $azureAiUserRoleId = $params.userAccess.value.foundry.roleDefinitionId
