@@ -5,7 +5,7 @@ Day 1 (Sandeep — Agentic AI) is on `main`.
 
 ## Quick start
 
-See **[DAY2-DEPLOY-GUIDE.md](DAY2-DEPLOY-GUIDE.md)** for the full customer-facing guide.
+See **[CUSTOMER-DEPLOY-README.md](CUSTOMER-DEPLOY-README.md)** for the full customer-facing guide (validation + deploy + verification + teardown).
 
 ```powershell
 ./scripts/deploy-day2.ps1 `
@@ -48,5 +48,5 @@ Allfiles/
   attendees-sample.csv                Template for the bulk workspace script
   lab03/
     setup-sql-vector.sql              CREATE USER + demo VECTOR table for Lab 03
-DAY2-DEPLOY-GUIDE.md                Customer-facing guide
+CUSTOMER-DEPLOY-README.md           Customer-facing self-deploy guide (validate + deploy + verify + teardown)
 ```
