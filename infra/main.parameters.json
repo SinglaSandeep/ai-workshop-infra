@@ -27,11 +27,8 @@
         },
 
         "aiFoundry": {
-          "//locations": "Foundry runs in these regions. FIRST = primary (feeds the workshop .env). SECOND = secondary full stack for model-quota overflow / fallback. All OTHER resources stay in primaryLocation. Use one region by leaving a single entry. NOTE: every model in deployments[] must be available in EVERY region listed here.",
-          "locations": [
-            "swedencentral",
-            "northcentralus"
-          ],
+          "//location": "Foundry account + project + model deployments run in this region. For the sandbox it matches primaryLocation (swedencentral).",
+          "location": "swedencentral",
           "sku": "S0",
           "//chatDeploymentName": "Must match one deployment.name below; written to .env as AZURE_AI_MODEL_DEPLOYMENT.",
           "chatDeploymentName": "gpt-4.1-mini",

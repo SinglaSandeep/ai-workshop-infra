@@ -1,94 +1,87 @@
 <#
 .SYNOPSIS
-    Teardown - delete and purge all workshop infrastructure.
+    Teardown - delete the workshop resources INSIDE the resource group.
 
 .DESCRIPTION
-    Runs `azd down --force --purge` to remove every resource (and its role
-    assignments) created by this project.
+    Deletes every resource inside the selected resource group but leaves the
+    resource group itself in place (you own / selected it). Azure AI Foundry
+    (Cognitive Services) accounts support SOFT DELETE, so after the resources
+    are removed this script also purges any soft-deleted Foundry accounts that
+    belonged to the group, keeping redeploys reliable.
 
-    Azure AI Foundry (Cognitive Services) accounts support SOFT DELETE, and
-    `azd down --purge` does not always purge them. Because this template uses
-    deterministic account names, any leftover soft-deleted account blocks the
-    next `azd up` with FlagMustBeSetForRestore. To keep redeploys reliable, this
-    script captures the resource group first and explicitly purges any
-    soft-deleted Foundry accounts that belonged to it after the teardown.
+    Role assignments are NOT removed here — run revoke-resource-access.ps1 and
+    revoke-user-access.ps1 first if you want to revoke access too.
+
+.PARAMETER ResourceGroup
+    Target resource group. Defaults to the one recorded by deploy.ps1.
 
 .EXAMPLE
-    ./scripts/destroy.ps1
+    ./scripts/destroy.ps1 -ResourceGroup rg-zava-sandbox
 #>
 param(
-    [switch]$Force = $true,
-    [switch]$Purge = $true
+    [Parameter(Mandatory = $false)]
+    [string]$ResourceGroup,
+
+    [Parameter(Mandatory = $false)]
+    [int]$MaxPasses = 6
 )
 
 $ErrorActionPreference = 'Stop'
-$projectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot '_common.ps1')
 
-function Get-AzdEnvValues {
-    $values = @{}
-    $lines = azd env get-values 2>$null
-    foreach ($line in $lines) {
-        if ($line -match '^([^=]+)=(.*)$') {
-            $values[$matches[1]] = $matches[2].Trim('"')
+# Delete every resource in the group without deleting the group itself. Several
+# passes resolve dependency ordering (e.g. a child resource that must go before
+# its parent).
+function Remove-ResourceGroupContents {
+    param(
+        [string]$ResourceGroup,
+        [int]$MaxPasses = 6
+    )
+
+    for ($pass = 1; $pass -le $MaxPasses; $pass++) {
+        $ids = @(az resource list --resource-group $ResourceGroup --query '[].id' -o tsv |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        if ($ids.Count -eq 0) {
+            Write-Host "  Resource group '$ResourceGroup' is empty."
+            return
         }
-    }
-    return $values
-}
-
-# Purge any soft-deleted Foundry (Cognitive Services) accounts that belonged to
-# the resource group, so their deterministic names are free for the next deploy.
-function Clear-SoftDeletedFoundryAccounts {
-    param([string]$ResourceGroup)
-
-    if ([string]::IsNullOrWhiteSpace($ResourceGroup)) {
-        return
+        Write-Host "  Pass ${pass}: deleting $($ids.Count) resource(s)..."
+        az resource delete --ids @ids --only-show-errors 2>$null | Out-Null
     }
 
-    $deletedJson = az cognitiveservices account list-deleted -o json 2>$null
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($deletedJson)) {
-        return
-    }
-
-    $rgPattern = "/resourceGroups/$([regex]::Escape($ResourceGroup))/"
-    $toPurge = @(($deletedJson | ConvertFrom-Json) | Where-Object { $_.id -match $rgPattern })
-    if ($toPurge.Count -eq 0) {
-        return
-    }
-
-    foreach ($acct in $toPurge) {
-        Write-Host "Purging soft-deleted Foundry account '$($acct.name)' in '$($acct.location)'..."
-        az cognitiveservices account purge `
-            --name $acct.name `
-            --resource-group $ResourceGroup `
-            --location $acct.location `
-            --only-show-errors | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Could not purge '$($acct.name)'. Purge it manually in the Azure portal."
-        }
+    $remaining = @(az resource list --resource-group $ResourceGroup --query '[].id' -o tsv |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($remaining.Count -gt 0) {
+        Write-Warning "Some resources could not be deleted automatically:`n  $($remaining -join "`n  ")"
+        Write-Warning 'Re-run ./scripts/destroy.ps1, or delete them manually in the Azure portal.'
     }
 }
 
+$projectRoot = Get-ProjectRoot
 Push-Location $projectRoot
 try {
-    # Capture the resource group BEFORE teardown; azd clears env state on down.
-    $envValues = Get-AzdEnvValues
-    $resourceGroup = $envValues['AZURE_RESOURCE_GROUP']
-    if ([string]::IsNullOrWhiteSpace($resourceGroup) -and -not [string]::IsNullOrWhiteSpace($envValues['AZURE_ENV_NAME'])) {
-        $resourceGroup = "rg-$($envValues['AZURE_ENV_NAME'])"
+    $ResourceGroup = Resolve-ResourceGroup -ResourceGroup $ResourceGroup
+
+    $exists = (az group exists --name $ResourceGroup -o tsv)
+    if ($exists -ne 'true') {
+        Write-Host "Resource group '$ResourceGroup' does not exist; nothing to delete."
+        return
     }
 
-    $arguments = @('down')
-    if ($Force) {
-        $arguments += '--force'
-    }
-    if ($Purge) {
-        $arguments += '--purge'
-    }
-
-    azd @arguments
+    Write-Host "== Deleting workshop resources in resource group '$ResourceGroup' =="
+    Remove-ResourceGroupContents -ResourceGroup $ResourceGroup -MaxPasses $MaxPasses
 
     # Belt-and-suspenders: ensure no soft-deleted Foundry account lingers.
-    Clear-SoftDeletedFoundryAccounts -ResourceGroup $resourceGroup
+    Clear-SoftDeletedFoundryAccounts -ResourceGroup $ResourceGroup
+
+    # The recorded outputs are now stale (the resources are gone).
+    $outputsFile = Join-Path $projectRoot '.azure/main-outputs.json'
+    if (Test-Path $outputsFile) {
+        Remove-Item $outputsFile -Force
+    }
+
+    Write-Host ''
+    Write-Host "Done. Resource group '$ResourceGroup' was kept; its resources were deleted."
 }
 finally {
     Pop-Location

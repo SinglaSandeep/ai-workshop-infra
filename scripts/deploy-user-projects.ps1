@@ -50,31 +50,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-
-function Get-ProjectRoot {
-    Split-Path -Parent $PSScriptRoot
-}
-
-function Get-AzdEnvValues {
-    $values = @{}
-    $lines = azd env get-values 2>$null
-    foreach ($line in $lines) {
-        if ($line -match '^([^=]+)=(.*)$') {
-            $values[$matches[1]] = $matches[2].Trim('"')
-        }
-    }
-    return $values
-}
+. (Join-Path $PSScriptRoot '_common.ps1')
 
 $projectRoot = Get-ProjectRoot
 Push-Location $projectRoot
 try {
-    if ([string]::IsNullOrWhiteSpace($ResourceGroup)) {
-        $ResourceGroup = (Get-AzdEnvValues)['AZURE_RESOURCE_GROUP']
-    }
-    if ([string]::IsNullOrWhiteSpace($ResourceGroup)) {
-        throw 'AZURE_RESOURCE_GROUP not found. Pass -ResourceGroup or run inside an azd environment.'
-    }
+    $ResourceGroup = Resolve-ResourceGroup -ResourceGroup $ResourceGroup
     if (-not (Test-Path $ProjectsFile)) {
         throw "Projects file '$ProjectsFile' not found."
     }

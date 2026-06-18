@@ -13,27 +13,12 @@
       ]
     },
     "userAccess": {
-      "//": "Part D — the exact level of access participants receive. Change a roleDefinitionId to raise/lower a level, or edit the Cosmos dataActions list.",
+      "//": "Part D — the exact level of access participants receive. Change resourceGroup.roleDefinitionId to raise/lower the control-plane level.",
       "value": {
-        "//foundry": "Foundry project access. Default: Foundry User (formerly Azure AI User) = run + create agents, but NOT create/delete model deployments.",
-        "foundry": {
-          "roleName": "Foundry User",
-          "roleDefinitionId": "53ca6127-db72-4b80-b1b0-d745d6d5456d"
-        },
-        "//search": "AI Search access. Default: Search Index Data Reader = read (query) only.",
-        "search": {
-          "roleName": "Search Index Data Reader",
-          "roleDefinitionId": "1407120a-92aa-4202-b7e9-c0e197c71c8f"
-        },
-        "//cosmos": "Cosmos DB access. Default dataActions = read/write ITEMS only (no container create/delete/scale).",
-        "cosmos": {
-          "roleName": "Workshop Data Read/Write (items only)",
-          "dataActions": [
-            "Microsoft.DocumentDB/databaseAccounts/readMetadata",
-            "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/*",
-            "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/executeQuery",
-            "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/readChangeFeed"
-          ]
+        "//resourceGroup": "Resource group access. Default: Contributor = manage/use every resource in the workshop RG (but NOT assign roles). With key-based auth enabled, Contributor lets participants read the resource keys / connection settings they need (including Cosmos). Built-in Contributor id: b24988ac-6180-42a0-9c14-49b21d8d3a83.",
+        "resourceGroup": {
+          "roleName": "Contributor",
+          "roleDefinitionId": "b24988ac-6180-42a0-9c14-49b21d8d3a83"
         }
       }
     }

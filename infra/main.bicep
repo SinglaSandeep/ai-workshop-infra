@@ -21,4 +21,3 @@ module core './modules/core-resources.bicep' = {
 output resourceNames object = core.outputs.resourceNames
 output endpoints object = core.outputs.endpoints
 output workshopSettings object = core.outputs.workshopSettings
-output managedIdentityPrincipals object = core.outputs.managedIdentityPrincipals

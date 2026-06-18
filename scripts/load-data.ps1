@@ -34,6 +34,9 @@ param(
     [string]$WorkshopPath,
 
     [Parameter(Mandatory = $false)]
+    [string]$ResourceGroup,
+
+    [Parameter(Mandatory = $false)]
     [string]$OperatorObjectId,
 
     [Parameter(Mandatory = $false)]
@@ -44,21 +47,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-
-function Get-ProjectRoot {
-    Split-Path -Parent $PSScriptRoot
-}
-
-function Get-AzdEnvValues {
-    $values = @{}
-    $lines = azd env get-values 2>$null
-    foreach ($line in $lines) {
-        if ($line -match '^([^=]+)=(.*)$') {
-            $values[$matches[1]] = $matches[2].Trim('"')
-        }
-    }
-    return $values
-}
+. (Join-Path $PSScriptRoot '_common.ps1')
 
 $projectRoot = Get-ProjectRoot
 Push-Location $projectRoot
@@ -75,8 +64,10 @@ try {
     $endpoints = $outputs.endpoints.value
     $settings = $outputs.workshopSettings.value
 
-    $envValues = Get-AzdEnvValues
-    $resourceGroup = $envValues['AZURE_RESOURCE_GROUP']
+    $deployConfig = Get-DeployConfig
+    $ResourceGroup = Resolve-ResourceGroup -ResourceGroup $ResourceGroup
+    $resourceGroup = $ResourceGroup
+    $location = if ($deployConfig) { $deployConfig.location } else { '' }
     $subscriptionId = (az account show --query id -o tsv)
     $tenantId = (az account show --query tenantId -o tsv)
 
@@ -125,7 +116,7 @@ try {
     $envPath = Join-Path $WorkshopPath '.env'
 
     # Resource-derived settings this script owns. Everything else already in
-    # .env (agent names, memory demo users, orchestrator flags, comments) is
+    # .env (agent names, orchestrator flags, comments) is
     # left untouched. The MCP URLs stay empty here — they are filled in later
     # when the workshop deploys its Container Apps.
     $managed = [ordered]@{
@@ -144,10 +135,8 @@ try {
         COSMOS_INVENTORY_CONTAINER            = $settings.cosmosInventoryContainer
         COSMOS_MARKETING_CONTAINER            = $settings.cosmosMarketingContainer
         ACA_ENVIRONMENT                       = $settings.acaEnvironment
-        ACA_LOCATION                          = $envValues['AZURE_LOCATION']
+        ACA_LOCATION                          = $location
         ACR_NAME                              = $settings.acrName
-        APP_IDENTITY_RESOURCE_ID              = $settings.workloadIdentityResourceId
-        APP_IDENTITY_CLIENT_ID                = $settings.workloadIdentityClientId
         APPLICATIONINSIGHTS_CONNECTION_STRING = $endpoints.appInsightsConnectionString
     }
 

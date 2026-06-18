@@ -26,9 +26,6 @@ param tags object
 resource aiFoundry 'Microsoft.CognitiveServices/accounts@2025-10-01-preview' = {
   name: accountName
   location: location
-  identity: {
-    type: 'SystemAssigned'
-  }
   sku: {
     name: sku
   }
@@ -36,8 +33,6 @@ resource aiFoundry 'Microsoft.CognitiveServices/accounts@2025-10-01-preview' = {
   properties: {
     allowProjectManagement: true
     customSubDomainName: accountName
-    // Entra-only: API keys are rejected.
-    disableLocalAuth: true
     publicNetworkAccess: 'Enabled'
   }
   tags: tags
@@ -47,9 +42,6 @@ resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-10-01-pre
   name: projectName
   parent: aiFoundry
   location: location
-  identity: {
-    type: 'SystemAssigned'
-  }
   properties: {}
   tags: tags
 }
@@ -77,9 +69,7 @@ resource aiDeployments 'Microsoft.CognitiveServices/accounts/deployments@2025-06
 }]
 
 output accountName string = aiFoundry.name
-output accountPrincipalId string = aiFoundry.identity.principalId
 output accountEndpoint string = aiFoundry.properties.endpoint
 output projectName string = aiProject.name
 output projectId string = aiProject.id
-output projectPrincipalId string = aiProject.identity.principalId
 output projectEndpoint string = 'https://${accountName}.services.ai.azure.com/api/projects/${projectName}'
