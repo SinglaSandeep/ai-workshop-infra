@@ -501,18 +501,69 @@ the full orchestration runs in the cloud.
 
 ## Teardown (optional)
 
-Delete the resources **inside** the resource group but keep the group itself:
+Delete the resources **inside** the resource group but keep the group itself.
+
+### Teardown by resource type
+
+Remove resources **type by type**, in a dependency-safe order (workloads first,
+then the platforms they run on, then shared/observability resources). Each step
+deletes only the resource types this document creates, so you can run a single
+type in isolation or the whole sequence. Every step is idempotent — a type with
+no matching resources is simply skipped.
 
 ```powershell
-# Delete every resource in the group (re-run if some remain due to dependencies)
-$ids = az resource list --resource-group $RG --query "[].id" -o tsv
-if ($ids) { az resource delete --ids $ids }
+# Helper: delete all resources of a given type in the resource group
+function Remove-ByType($type) {
+  $ids = az resource list --resource-group $RG --resource-type $type --query "[].id" -o tsv
+  if ($ids) {
+    Write-Host "Deleting $type ..." -ForegroundColor Cyan
+    az resource delete --ids $ids
+  } else {
+    Write-Host "No $type resources found — skipping." -ForegroundColor DarkGray
+  }
+}
 
-# Purge any soft-deleted Foundry account so its name is free for a redeploy
+# Order matters: delete dependent workloads before the platforms they depend on.
+$orderedTypes = @(
+  "Microsoft.App/containerApps",                       # chat app + 3 MCP servers
+  "Microsoft.App/managedEnvironments",                 # Container Apps environment
+  "Microsoft.CognitiveServices/accounts",              # Azure AI Foundry account + projects
+  "Microsoft.DocumentDB/databaseAccounts",             # Cosmos DB
+  "Microsoft.Search/searchServices",                   # Azure AI Search
+  "Microsoft.ContainerRegistry/registries",            # Container Registry
+  "Microsoft.ManagedIdentity/userAssignedIdentities",  # id-zava-workload
+  "Microsoft.Insights/components",                      # Application Insights
+  "Microsoft.OperationalInsights/workspaces"           # Log Analytics workspace
+)
+
+foreach ($type in $orderedTypes) { Remove-ByType $type }
+```
+
+> To remove just one category, call the helper directly, e.g.
+> `Remove-ByType "Microsoft.App/containerApps"` to delete only the Container
+> Apps, or `Remove-ByType "Microsoft.DocumentDB/databaseAccounts"` for Cosmos.
+
+### Purge soft-deleted Foundry accounts
+
+Deleting a `Microsoft.CognitiveServices/accounts` resource only soft-deletes it.
+Purge it so the name is free for a redeploy:
+
+```powershell
 az cognitiveservices account list-deleted `
   --query "[?contains(id, '/resourceGroups/$RG/')].{name:name,location:location}" -o tsv |
   ForEach-Object {
     $parts = $_ -split "`t"
     az cognitiveservices account purge --name $parts[0] --resource-group $RG --location $parts[1]
   }
+```
+
+### Delete everything at once (any type)
+
+Prefer the type-ordered teardown above. If you just want a clean sweep
+regardless of type, delete every remaining resource in the group:
+
+```powershell
+# Delete every resource in the group (re-run if some remain due to dependencies)
+$ids = az resource list --resource-group $RG --query "[].id" -o tsv
+if ($ids) { az resource delete --ids $ids }
 ```
